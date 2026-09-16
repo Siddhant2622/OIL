@@ -8,7 +8,12 @@ import { updateSession } from "@/lib/supabase/middleware";
  * and /auth/callback, not here — this avoids RLS-breaking redirects.
  */
 export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+  try {
+    return await updateSession(request);
+  } catch (error) {
+    console.error("[middleware] Invocation error:", error);
+    return NextResponse.next({ request });
+  }
 }
 
 export const config = {
