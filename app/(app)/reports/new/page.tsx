@@ -1,0 +1,292 @@
+"use client";
+
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, Camera, Upload } from "lucide-react";
+
+const schema = z.object({
+  report_type: z.enum(["UNSAFE_ACT", "UNSAFE_CONDITION", "NEAR_MISS", "INCIDENT"]),
+  occurred_at: z.string().min(1, "Date and time is required"),
+  location_text: z.string().min(1, "Location is required"),
+  activity_text: z.string().min(1, "Activity is required"),
+  description: z
+    .string()
+    .min(40, "Description must be at least 40 characters — be specific so the AI can analyse it properly"),
+  immediate_action: z.string().optional(),
+  reported_severity: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL", "UNKNOWN"]),
+  contractor: z.string().optional(),
+  shift: z.string().optional(),
+});
+
+type FormData = z.infer<typeof schema>;
+
+const REPORT_TYPES = [
+  { value: "UNSAFE_ACT", label: "Unsafe Act", color: "border-orange-400 bg-orange-50 text-orange-800" },
+  { value: "UNSAFE_CONDITION", label: "Unsafe Condition", color: "border-yellow-400 bg-yellow-50 text-yellow-800" },
+  { value: "NEAR_MISS", label: "Near Miss", color: "border-red-400 bg-red-50 text-red-800" },
+  { value: "INCIDENT", label: "Incident", color: "border-red-600 bg-red-100 text-red-900" },
+];
+
+export default function NewReportPage() {
+  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      report_type: "UNSAFE_ACT",
+      reported_severity: "UNKNOWN",
+      occurred_at: new Date().toISOString().slice(0, 16),
+    },
+  });
+
+  const selectedType = watch("report_type");
+
+  async function onSubmit(data: FormData) {
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        setSubmitError(json.error ?? "Submission failed.");
+        return;
+      }
+
+      // Trigger analysis in background
+      fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ report_id: json.id }),
+      }).catch(() => {});
+
+      router.push(`/reports/${json.id}`);
+    } catch (err) {
+      setSubmitError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const inputClass =
+    "w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition";
+  const labelClass = "mb-1.5 block text-sm font-semibold text-foreground";
+  const errorClass = "mt-1 text-xs text-red-600";
+
+  return (
+    <div className="mx-auto max-w-2xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">Report a Hazard</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Be as specific as possible — the AI needs the full picture to assess SIF potential.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* Report Type — large tap targets for mobile */}
+        <fieldset>
+          <legend className={labelClass}>
+            Report type <span className="text-red-500">*</span>
+          </legend>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {REPORT_TYPES.map((type) => (
+              <label
+                key={type.value}
+                className={`cursor-pointer rounded-xl border-2 p-3 text-center text-sm font-semibold transition ${
+                  selectedType === type.value
+                    ? type.color + " shadow-sm"
+                    : "border-border bg-card text-muted-foreground hover:border-primary/40"
+                }`}
+              >
+                <input
+                  type="radio"
+                  value={type.value}
+                  className="sr-only"
+                  {...register("report_type")}
+                />
+                {type.label}
+              </label>
+            ))}
+          </div>
+          {errors.report_type && (
+            <p className={errorClass}>{errors.report_type.message}</p>
+          )}
+        </fieldset>
+
+        {/* Date/Time */}
+        <div>
+          <label className={labelClass} htmlFor="occurred_at">
+            Date &amp; time of observation <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="occurred_at"
+            type="datetime-local"
+            className={inputClass}
+            {...register("occurred_at")}
+          />
+          {errors.occurred_at && (
+            <p className={errorClass}>{errors.occurred_at.message}</p>
+          )}
+        </div>
+
+        {/* Location */}
+        <div>
+          <label className={labelClass} htmlFor="location_text">
+            Location <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="location_text"
+            placeholder="e.g. Well Pad A, Rig Floor, Pump Room 3B"
+            className={inputClass}
+            {...register("location_text")}
+          />
+          {errors.location_text && (
+            <p className={errorClass}>{errors.location_text.message}</p>
+          )}
+        </div>
+
+        {/* Activity */}
+        <div>
+          <label className={labelClass} htmlFor="activity_text">
+            What activity was underway? <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="activity_text"
+            placeholder="e.g. Routine pipe inspection, drilling operations, hot work"
+            className={inputClass}
+            {...register("activity_text")}
+          />
+          {errors.activity_text && (
+            <p className={errorClass}>{errors.activity_text.message}</p>
+          )}
+        </div>
+
+        {/* Description — the most important field */}
+        <div>
+          <label className={labelClass} htmlFor="description">
+            What did you observe? <span className="text-red-500">*</span>
+          </label>
+          <p className="mb-1.5 text-xs text-muted-foreground">
+            Include: what happened, what could have gone wrong, who was involved,
+            what barriers were missing or failed. Minimum 40 characters.
+          </p>
+          <textarea
+            id="description"
+            rows={6}
+            placeholder="e.g. Worker was observed entering the confined space of tank TK-204 without a gas test being conducted first. The PTW was not signed. No standby person was present outside..."
+            className={inputClass + " resize-none leading-relaxed"}
+            {...register("description")}
+          />
+          {errors.description && (
+            <p className={errorClass}>{errors.description.message}</p>
+          )}
+        </div>
+
+        {/* Immediate action */}
+        <div>
+          <label className={labelClass} htmlFor="immediate_action">
+            Immediate action taken
+          </label>
+          <textarea
+            id="immediate_action"
+            rows={3}
+            placeholder="e.g. Work stopped immediately, supervisor notified, area cordoned off"
+            className={inputClass + " resize-none"}
+            {...register("immediate_action")}
+          />
+        </div>
+
+        {/* Reported severity */}
+        <div>
+          <label className={labelClass} htmlFor="reported_severity">
+            Your severity assessment
+          </label>
+          <p className="mb-1.5 text-xs text-muted-foreground">
+            Note: The AI makes its own assessment independently.
+          </p>
+          <select
+            id="reported_severity"
+            className={inputClass}
+            {...register("reported_severity")}
+          >
+            <option value="UNKNOWN">I&apos;m not sure</option>
+            <option value="LOW">Low — minor, no injury potential</option>
+            <option value="MEDIUM">Medium — could cause an injury</option>
+            <option value="HIGH">High — significant injury potential</option>
+            <option value="CRITICAL">Critical — could be fatal</option>
+          </select>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Contractor */}
+          <div>
+            <label className={labelClass} htmlFor="contractor">
+              Contractor involved (if any)
+            </label>
+            <input
+              id="contractor"
+              placeholder="e.g. XYZ Drilling Services"
+              className={inputClass}
+              {...register("contractor")}
+            />
+          </div>
+
+          {/* Shift */}
+          <div>
+            <label className={labelClass} htmlFor="shift">
+              Shift
+            </label>
+            <select id="shift" className={inputClass} {...register("shift")}>
+              <option value="">Not specified</option>
+              <option value="Day">Day</option>
+              <option value="Night">Night</option>
+              <option value="Morning">Morning</option>
+              <option value="Evening">Evening</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Error */}
+        {submitError && (
+          <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-300">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            {submitError}
+          </div>
+        )}
+
+        {/* Submit */}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full rounded-xl bg-orange-600 py-4 text-base font-bold text-white shadow-lg shadow-orange-900/20 transition hover:bg-orange-500 disabled:opacity-60"
+          id="submit-report-btn"
+        >
+          {submitting
+            ? "Submitting… AI analysis will begin automatically"
+            : "Submit Report"}
+        </button>
+
+        <p className="text-center text-xs text-muted-foreground">
+          Your report will be immediately analysed by the SIF Sentinel AI engine.
+        </p>
+      </form>
+    </div>
+  );
+}
