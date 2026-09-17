@@ -34,6 +34,9 @@ jobs:
       - name: ESLint code quality check
         run: npm run lint
 
+      - name: Run deterministic guardrails and benchmark tests
+        run: npm run test:guardrails
+
       - name: Build production bundle
         run: npm run build
         env:

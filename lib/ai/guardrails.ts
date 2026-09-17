@@ -87,9 +87,9 @@ export function applyGuardrails(
 
   // ── Guardrail 3: Confined space without gas test / permit ─────────────────
   const confinedSpacePattern =
-    /confined\s+space|manhole|vessel\s+entry|tank\s+entry|pit\s+entry/i;
+    /confined\s+space|manhole|vessel\s+(entry)?|tank\s+(entry)?|pit\s+(entry)?|entered\s+([a-z0-9\s-]{0,25})?(tank|vessel|pit|manhole|compartment)/i;
   const noGasTestPattern =
-    /no\s+gas\s+test|without\s+gas\s+test|gas\s+test\s+not|no\s+permit|without\s+permit|permit\s+not/i;
+    /(no|without)\s+([a-z\s-]{0,20})?gas\s+test|gas\s+test\s+not|no\s+permit|without\s+permit|permit\s+not/i;
 
   if (confinedSpacePattern.test(desc) && noGasTestPattern.test(desc)) {
     const orig = result.risk_band;
@@ -195,7 +195,7 @@ export function applyGuardrails(
 
   // ── Guardrail 6: Suspended load / dropped object / person under crane ──────
   const suspendedPattern =
-    /suspended\s+load|dropped\s+object|person\s+under\s+(crane|load|hook)|under\s+the\s+load|beneath\s+the\s+load|crane\s+swing/i;
+    /suspended\s+load|dropped\s+object|person\s+under\s+(crane|load|hook)|under\s+([a-z0-9.\s-]{0,25})?(load|pipe|bundle|crane|hook|collar|tubular)|beneath\s+the\s+load|crane\s+([a-z\s-]{0,15})?swing/i;
 
   if (suspendedPattern.test(desc)) {
     const orig = result.risk_band;

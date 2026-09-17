@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import Papa from "papaparse";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runAnalysisPipeline } from "@/lib/ai/pipeline";
@@ -14,19 +15,21 @@ interface CsvRow {
 }
 
 function parseCsv(text: string): CsvRow[] {
-  const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return [];
+  const result = Papa.parse<Record<string, string>>(text, {
+    header: true,
+    skipEmptyLines: "greedy",
+    transformHeader: (h) => h.trim().toLowerCase().replace(/['"]/g, ""),
+  });
 
-  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
-  const rows: CsvRow[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
-    const row: Record<string, string> = {};
-    headers.forEach((h, idx) => { row[h] = values[idx] ?? ""; });
-    if (row.description) rows.push(row as CsvRow);
-  }
-  return rows;
+  return (result.data ?? [])
+    .map((row) => {
+      const cleanRow: Record<string, string> = {};
+      for (const [k, v] of Object.entries(row)) {
+        cleanRow[k.trim()] = typeof v === "string" ? v.trim() : "";
+      }
+      return cleanRow as CsvRow;
+    })
+    .filter((r) => Boolean(r.description));
 }
 
 const VALID_TYPES = new Set(["UNSAFE_ACT", "UNSAFE_CONDITION", "NEAR_MISS", "INCIDENT"]);
