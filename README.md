@@ -1,4 +1,4 @@
-﻿# SIF Sentinel
+# SIF Sentinel
 
 [![CI](https://github.com/Siddhant2622/OIL/actions/workflows/ci.yml/badge.svg)](https://github.com/Siddhant2622/OIL/actions/workflows/ci.yml)
 
@@ -145,7 +145,12 @@ Creates 10 synthetic reports covering all 9 IOGP Life-Saving Rule scenarios. You
 npm run test:rls
 ```
 
-Verifies that cross-organization data isolation is enforced at the database level. Requires `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to be set.
+Verifies that cross-organization data isolation is enforced at the database level. Requires:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+> **Note on Test Authentication Model**: End-user production access strictly uses Google OAuth only (`No email/password authentication`). For headless CI/CD test automation, `npm run test:rls` uses the Supabase Admin API to programmatically provision and authenticate test user accounts for two separate organizations (`Org Alpha` and `Org Beta`). This mints real, scoped JWT sessions to directly exercise PostgreSQL RLS policies (`auth.uid()`, `current_org_id()`) without requiring interactive browser OAuth prompts. All test entities are completely purged from the database upon completion.
 
 ---
 

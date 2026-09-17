@@ -125,14 +125,41 @@ export function applyGuardrails(
 
   // ── Guardrail 5: Energised equipment / live line without LOTO ─────
   // Handles safe negative states: "de-energized", "not energized",
-  // "never energized", "no longer energized", "isolated".
-  // Triggers only on active energized states without LOTO or direct electrical hazards.
+  // "never energized", "no longer energized", "isolated", as well as justified
+  // exemptions like "LOTO not required" or "isolation not required".
+  // Triggers only on active energized states without LOTO or genuine electrical hazards.
+  const isLotoExempt =
+    /\b(loto|isolation)\s+(was\s+)?not\s+(required|needed|necessary|applicable)\b/i.test(desc) ||
+    /\b(no|without)\s+(loto|isolation)\s+(was\s+)?(required|needed|necessary|applicable)\b/i.test(desc) ||
+    /\b(loto|isolation)\s+exempt\b/i.test(desc);
+
   const directElectricalHazard =
-    /\b(live\s+(line|wire|circuit|cable|conductor|busbar)|loto\s+(not|bypass|bypassed|failed|breached)|(no|without)\s+loto|isolation\s+(not|bypass|bypassed|failed)|(not|without)\s+isolation)\b/i;
+    /\b(live\s+(line|wire|circuit|cable|conductor|busbar)|loto\s+(bypassed?|failed?|breached?|violated?|omitted?)|isolation\s+(bypassed?|failed?|breached?|violated?|omitted?))\b/i;
 
-  let hasEnergisedHazard = directElectricalHazard.test(desc);
+  const missingLotoPattern =
+    /\b(loto\s+not\s+(applied|followed|done|performed|implemented|used|installed|verified|in\s+place)|isolation\s+not\s+(applied|followed|done|performed|implemented|used|installed|verified|in\s+place))\b/i;
 
-  if (!hasEnergisedHazard) {
+  const noLotoDirect =
+    /\b(no|without)\s+loto\b(?!\s+(was\s+)?(required|needed|necessary|applicable))\b/i;
+
+  const unisolatedDirect =
+    /\b(not|without)\s+isolation\b(?!\s+(was\s+)?(required|needed|necessary|applicable))\b/i;
+
+  let hasEnergisedHazard = false;
+
+  if (
+    directElectricalHazard.test(desc) ||
+    missingLotoPattern.test(desc) ||
+    noLotoDirect.test(desc) ||
+    unisolatedDirect.test(desc)
+  ) {
+    // If the observation is a safe exemption without active live electrical energy, do not trigger
+    if (!isLotoExempt || /\b(live\s+(line|wire|circuit|cable|conductor|busbar)|energiz|energis)/i.test(desc)) {
+      hasEnergisedHazard = true;
+    }
+  }
+
+  if (!hasEnergisedHazard && !isLotoExempt) {
     // Check if "energised"/"energized" appears in an active (non-negated) hazard context
     const energisedMatches = desc.matchAll(/(?:\b[\w-]+\s+){0,4}\b(de-?|un-?)?energi[sz]e?d\b/gi);
     for (const match of energisedMatches) {
@@ -187,21 +214,34 @@ export function applyGuardrails(
   // Context-aware detection: requires explicit uncontrolled pressure release,
   // trapped/residual pressure, missing/bypassed depressurisation, or opening
   // lines/manifolds while pressurized. Does NOT fire on isolated/depressurized
-  // lines or normal high-pressure operations with verified barriers.
+  // lines, proven-empty lines ("no depressurization required because line was proven empty"),
+  // or systems verified at zero pressure before opening.
+  const isSafePressureState =
+    /\b(no|without)\s+depressuri[sz]ation\s+(was\s+)?(required|needed|necessary)\b/i.test(desc) ||
+    /\bdepressuri[sz]ation\s+(was\s+)?not\s+(required|needed|necessary)\b/i.test(desc) ||
+    /\b(proven|proved)\s+(zero|empty|depressuri[sz]ed)\b/i.test(desc) ||
+    /\b(isolated[,\s]+drained\s+and\s+gas-?free|drained\s+and\s+depressuri[sz]ed)\b/i.test(desc) ||
+    /\bpressure\s+verified\s+at\s+zero\b/i.test(desc) ||
+    /\bverified\s+zero\s+pressure\b/i.test(desc);
+
   const uncontrolledPressurePattern =
     /\b(trapped|uncontrolled|unexpected|sudden|residual)\s+pressure\b|\bpressure\s+(kick|blowout|spray|burst|rupture|discharge|release)\b|\blive\s+pressure\s+(release|escape|leak|discharge|hazard|spray)\b|\b(well|gas)\s+kick\b|\bblowout\b/i;
 
   const missingDepressurisationPattern =
-    /\b(without|no)\s+depressuri[sz]ation\b|\bdepressuri[sz]ation\s+(not|bypassed|skipped|omitted|failed)\b|\bnot\s+depressuri[sz]ed\b|\b(without|no)\s+(bleeding|bleed)\s+(off|down)\b/i;
+    /\b(without|no)\s+depressuri[sz]ation\b(?!\s+(was\s+)?(required|needed|necessary))\b|\bdepressuri[sz]ation\s+(not\s+(done|performed|carried|completed)|bypassed|skipped|omitted|failed)\b|\bnot\s+depressuri[sz]ed\b|\b(without|no)\s+(bleeding|bleed)\s+(off|down)\b/i;
 
   const openedUnderPressurePattern =
     /\b(manifold|flange|line|pipe|valve|coupling|fitting|vessel)\s+(opened|cracked|loosened|disconnected|unbolted|cut)\s+(under|while|with)\s+(live\s+)?pressure\b|\b(opened|cracked|loosened|disconnected|unbolted|cut)\s+(a\s+)?pressuri[sz]ed\s+(hydrocarbon\s+|gas\s+|oil\s+|steam\s+|fluid\s+)?(line|pipe|manifold|valve|flange|vessel)\b|\b(opened|cracked|loosened|disconnected|unbolted|cut)\s+(while\s+(still\s+)?pressuri[sz]ed|under\s+(live\s+)?pressure)\b/i;
 
-  if (
-    uncontrolledPressurePattern.test(desc) ||
-    missingDepressurisationPattern.test(desc) ||
-    openedUnderPressurePattern.test(desc)
-  ) {
+  let hasPressureHazard = false;
+
+  if (uncontrolledPressurePattern.test(desc) || openedUnderPressurePattern.test(desc)) {
+    hasPressureHazard = true;
+  } else if (missingDepressurisationPattern.test(desc) && !isSafePressureState) {
+    hasPressureHazard = true;
+  }
+
+  if (hasPressureHazard) {
     const orig = result.risk_band;
     result.sif_potential = true;
     result.risk_band = escalateBand(result.risk_band as Band, "CRITICAL");

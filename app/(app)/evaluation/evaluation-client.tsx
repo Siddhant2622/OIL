@@ -96,7 +96,7 @@ export function EvaluationClient({ liveStats }: { liveStats: LiveReviewStat }) {
 
     // Evidence Validity:
     // In live mode, evaluate the actual evidence spans returned by Gemini/Guardrails pipeline
-    // In baseline mode, evaluate fixture substring containment
+    // using exact case-sensitive verbatim match (aligns with Guardrail 1 desc.includes(span))
     let evidenceValidity = 0;
     if (isLive) {
       const validCases = BENCHMARK_SUITE.filter((c) => {
@@ -106,16 +106,16 @@ export function EvaluationClient({ liveStats }: { liveStats: LiveReviewStat }) {
         if (c.groundTruthSIF) {
           return (
             spans.length > 0 &&
-            spans.every((s) => s.trim().length > 0 && c.description.toLowerCase().includes(s.toLowerCase()))
+            spans.every((s) => s.trim().length > 0 && c.description.includes(s))
           );
         } else {
-          return spans.every((s) => c.description.toLowerCase().includes(s.toLowerCase()));
+          return spans.every((s) => c.description.includes(s));
         }
       }).length;
       evidenceValidity = (validCases / total) * 100;
     } else {
       const validEvidence = BENCHMARK_SUITE.filter((c) =>
-        c.description.toLowerCase().includes(c.exactEvidence.toLowerCase())
+        c.description.includes(c.exactEvidence)
       ).length;
       evidenceValidity = (validEvidence / total) * 100;
     }
@@ -318,13 +318,13 @@ export function EvaluationClient({ liveStats }: { liveStats: LiveReviewStat }) {
 
           <div className="rounded-lg border bg-muted/20 p-4">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-sm">Human HSE Ground Truth</span>
-              <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-300">
-                Active Ground Truth
+              <span className="font-semibold text-sm">Production HSE Review Ground Truth</span>
+              <span className="rounded bg-blue-100 dark:bg-blue-950/60 px-2 py-0.5 text-[10px] font-bold text-blue-800 dark:text-blue-300">
+                Production Database
               </span>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Expert HSE Officer reviews used for continuous drift detection and human override tracking.
+              Benchmark labels are curated synthetic/domain-inspired labels; production HSE reviews are tracked independently in the database for drift monitoring.
             </p>
           </div>
         </div>
