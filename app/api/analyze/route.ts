@@ -90,16 +90,25 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Check not already analyzed
-  if (["ANALYZING", "ANALYZED"].includes(report.status)) {
+  // Atomically claim the report for analysis using Compare-And-Swap (CAS).
+  // Guards against concurrent simultaneous requests analyzing the same report.
+  const { data: claimedReport, error: claimError } = await admin
+    .from("reports")
+    .update({ status: "ANALYZING" })
+    .eq("id", report_id)
+    .not("status", "in", '("ANALYZING","ANALYZED")')
+    .select()
+    .maybeSingle();
+
+  if (claimError || !claimedReport) {
     return NextResponse.json(
-      { error: "Report is already being analyzed" },
+      { error: "Report is already being analyzed or has already been analyzed" },
       { status: 409 }
     );
   }
 
   // Run pipeline (async — returns immediately after starting)
-  const result = await runAnalysisPipeline({ report, reporter: profile });
+  const result = await runAnalysisPipeline({ report: claimedReport, reporter: profile });
 
   if (!result.success) {
     return NextResponse.json(

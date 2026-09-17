@@ -88,8 +88,8 @@ alter table audit_log         enable row level security;
 create policy "org_select" on organizations
   for select using (id = public.current_org_id());
 
-create policy "org_insert" on organizations
-  for insert with check (true);  -- registration flow uses service role
+-- Note: organizations inserts are performed strictly via service role (createAdminClient)
+-- which bypasses RLS. Client-side insert is denied by default.
 
 create policy "org_update" on organizations
   for update using (
@@ -123,13 +123,11 @@ create policy "sites_delete" on sites
 -- ─── profiles ────────────────────────────────────────────────────────────────
 -- Everyone in the org can see the directory.
 -- Users can update their own row; ORG_ADMIN can update any row in org.
+-- Note: profile creation is service-role only (via /auth/callback and /register-company).
+-- Client-side insert is denied by default under RLS.
 
 create policy "profiles_select" on profiles
   for select using (org_id = public.current_org_id());
-
--- Insert is service-role only (via /auth/callback server action)
-create policy "profiles_insert" on profiles
-  for insert with check (true);
 
 create policy "profiles_update_own" on profiles
   for update using (id = auth.uid());

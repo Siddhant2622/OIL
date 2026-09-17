@@ -259,7 +259,7 @@ create index if not exists idx_reports_org_created on reports(org_id, created_at
 create index if not exists idx_reports_reporter on reports(reporter_id);
 create index if not exists idx_reports_status on reports(org_id, status);
 
-create index if not exists idx_ai_analyses_report on ai_analyses(report_id);
+create unique index if not exists idx_ai_analyses_report on ai_analyses(report_id);
 create index if not exists idx_ai_analyses_band on ai_analyses(org_id, risk_band);
 create index if not exists idx_ai_analyses_review on ai_analyses(org_id, needs_human_review) where needs_human_review = true;
 
@@ -357,9 +357,9 @@ drop policy if exists "org_select" on organizations;
 create policy "org_select" on organizations
   for select using (id = public.current_org_id());
 
+-- Note: organizations inserts are performed strictly via service role (createAdminClient)
+-- which bypasses RLS. Client-side insert is denied by default.
 drop policy if exists "org_insert" on organizations;
-create policy "org_insert" on organizations
-  for insert with check (true);
 
 drop policy if exists "org_update" on organizations;
 create policy "org_update" on organizations
@@ -399,9 +399,9 @@ drop policy if exists "profiles_select" on profiles;
 create policy "profiles_select" on profiles
   for select using (org_id = public.current_org_id());
 
+-- Note: profiles inserts are performed strictly via service role (createAdminClient).
+-- Client-side insert is denied by default under RLS.
 drop policy if exists "profiles_insert" on profiles;
-create policy "profiles_insert" on profiles
-  for insert with check (true);
 
 drop policy if exists "profiles_update_own" on profiles;
 create policy "profiles_update_own" on profiles
