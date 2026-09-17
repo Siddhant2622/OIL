@@ -167,6 +167,51 @@ export default async function HseDashboard() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
 
+  // 2a. Compute actual average closure time from real timestamps
+  const completedActions = actions?.filter(
+    (a) => a.status === "COMPLETED" && a.completed_at && a.created_at
+  ) ?? [];
+  const avgDaysToClose: number | null = completedActions.length > 0
+    ? parseFloat(
+        (
+          completedActions.reduce((sum, a) => {
+            const diff =
+              (new Date(a.completed_at!).getTime() - new Date(a.created_at).getTime()) /
+              (1000 * 60 * 60 * 24);
+            return sum + Math.max(0, diff);
+          }, 0) / completedActions.length
+        ).toFixed(1)
+      )
+    : null;
+
+  // 2b. Compute period-over-period deltas from actual DB rows
+  //     Split all rows into two equal halves by timestamp to compare "current" vs "previous"
+  function calcDelta(
+    rows: { created_at: string }[]
+  ): number | null {
+    if (rows.length < 2) return null;
+    const sorted = [...rows].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    const mid = new Date(
+      (new Date(sorted[0].created_at).getTime() +
+        new Date(sorted[sorted.length - 1].created_at).getTime()) /
+        2
+    );
+    const prev = sorted.filter((r) => new Date(r.created_at) < mid).length;
+    const curr = sorted.filter((r) => new Date(r.created_at) >= mid).length;
+    if (prev === 0) return null;
+    return parseFloat((((curr - prev) / prev) * 100).toFixed(1));
+  }
+
+  const allReportRows = (reports ?? []).map((r) => ({ created_at: r.created_at }));
+  const allSifRows = (analyses ?? [])
+    .filter((a) => a.sif_potential)
+    .map((a) => ({ created_at: a.created_at }));
+
+  const periodDeltaReports = calcDelta(allReportRows);
+  const periodDeltaSif = calcDelta(allSifRows);
+
   // ── STRICT LIVE DATA (Zero fabricated numbers) ──
   const liveData: CommandCenterData = {
     orgName: org?.name ?? "Company Workspace",
@@ -176,6 +221,8 @@ export default async function HseDashboard() {
     criticalCount: criticalCount ?? 0,
     reviewedCount: reviewedCount ?? 0,
     reviewedPct: safeSifCount > 0 ? Math.min(100, Math.round(((reviewedCount ?? 0) / safeSifCount) * 100)) : 0,
+    periodDeltaReports,
+    periodDeltaSif,
     trendData: liveTrendData,
     topSites: liveTopSites,
     topActivities: liveTopActivities,
@@ -188,7 +235,7 @@ export default async function HseDashboard() {
       overdue: overdueActions,
       verified: verifiedActions,
       slaRatePct: totalActions > 0 ? Math.round(((totalActions - overdueActions) / totalActions) * 100) : 100,
-      avgDaysToClose: verifiedActions > 0 ? 3.5 : 0,
+      avgDaysToClose,
     },
   };
 
@@ -201,6 +248,9 @@ export default async function HseDashboard() {
     criticalCount: 18,
     reviewedCount: 198,
     reviewedPct: 91,
+    // Demo model deltas are labelled as illustrative, not computed from live DB
+    periodDeltaReports: 12.4,
+    periodDeltaSif: 18.0,
     trendData: [
       { period: "Week 1", total: 110, sif: 18 },
       { period: "Week 2", total: 125, sif: 22 },

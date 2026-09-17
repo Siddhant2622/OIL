@@ -45,7 +45,7 @@ export interface BenchmarkCase {
 export const BENCHMARK_SUITE: BenchmarkCase[] = [
   {
     id: "TC-01",
-    source: "OSHA Severe Injury / Upstream",
+    source: "Illustrative scenario — domain-inspired by OSHA Severe Injury Reports",
     category: "Confined Space",
     description: "Worker entered crude storage tank to clear sludge. Atmospheric gas testing was not conducted prior to entry. No safety attendant posted outside.",
     groundTruthSIF: true,
@@ -73,7 +73,7 @@ export const BENCHMARK_SUITE: BenchmarkCase[] = [
   },
   {
     id: "TC-03",
-    source: "BSEE Offshore Statistics",
+    source: "Illustrative scenario — domain-inspired by BSEE Offshore Investigations",
     category: "Line of Fire",
     description: "Roustabout walked under 4.2-ton drill pipe bundle while crane was swinging load across the rig deck. Tag lines were not used.",
     groundTruthSIF: true,
@@ -101,7 +101,7 @@ export const BENCHMARK_SUITE: BenchmarkCase[] = [
   },
   {
     id: "TC-05",
-    source: "Public Safety Benchmark",
+    source: "Illustrative scenario — domain-inspired by upstream process safety incidents",
     category: "Bypassing Safety Controls",
     description: "Emergency shutdown valve (ESDV-102) was jumpered to bypass low-pressure trip during separator startup without management of change (MOC) authorization.",
     groundTruthSIF: true,
@@ -151,7 +151,7 @@ export const BENCHMARK_SUITE: BenchmarkCase[] = [
   },
   {
     id: "TC-09",
-    source: "OSHA Severe Injury / Upstream",
+    source: "Illustrative scenario — domain-inspired by OSHA Severe Injury Reports",
     category: "Energy Isolation",
     description: "Electrician troubleshooting 415V drilling motor control center without verifying lock-out tag-out. Breaker handle was energized while removing cover.",
     groundTruthSIF: true,
@@ -165,7 +165,7 @@ export const BENCHMARK_SUITE: BenchmarkCase[] = [
   },
   {
     id: "TC-10",
-    source: "BSEE Offshore Investigations",
+    source: "Illustrative scenario — domain-inspired by BSEE Offshore Investigations",
     category: "Safe Mechanical Lifting",
     description: "Auxiliary crane hoist cable frayed beyond 10% wire diameter criteria was used to lift 2.5-ton chemical tote across production deck.",
     groundTruthSIF: true,
@@ -204,7 +204,7 @@ export const BENCHMARK_SUITE: BenchmarkCase[] = [
   },
   {
     id: "TC-13",
-    source: "OSHA Severe Injury / Upstream",
+    source: "Illustrative scenario — domain-inspired by OSHA Severe Injury Reports",
     category: "Excavation",
     description: "Pipeline contractor entered 2.2-meter deep trench in sandy loam soil to inspect pipe coating. Trench walls had no shoring or benching.",
     groundTruthSIF: true,
@@ -268,7 +268,7 @@ export const BENCHMARK_SUITE: BenchmarkCase[] = [
   },
   {
     id: "TC-18",
-    source: "BSEE Offshore Investigations",
+    source: "Illustrative scenario — domain-inspired by BSEE Offshore Investigations",
     category: "Line of Fire",
     description: "Hydraulic cathead tongs parted under 18,000 ft-lbs torque while making up drill string. Snapping snub line recoiled across rig floor.",
     groundTruthSIF: true,
@@ -443,13 +443,13 @@ export function EvaluationClient({ liveStats }: { liveStats: LiveReviewStat }) {
 
           <div className="rounded-lg border bg-muted/20 p-4">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-sm">Public Safety Benchmark</span>
+              <span className="font-semibold text-sm">Domain-Inspired Scenarios</span>
               <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-300">
                 Active Benchmark
               </span>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Calibrated against OSHA Severe Injury Reports and BSEE Offshore Incident investigation cases.
+              Illustrative scenarios constructed by HSE domain experts, informed by OSHA Severe Injury and BSEE Offshore investigation categories. Not verbatim records from those databases.
             </p>
           </div>
 
@@ -625,42 +625,39 @@ export function EvaluationClient({ liveStats }: { liveStats: LiveReviewStat }) {
               Real-time synchronization with current organization reviews table.
             </p>
 
-            <div className="grid grid-cols-2 gap-4 my-4">
-              <div className="rounded-lg border bg-muted/20 p-4 text-center">
-                <span className="text-xs text-muted-foreground font-semibold">AI-HSE Agreement Rate</span>
-                <div className="mt-2 text-3xl font-black text-foreground font-mono">
-                  {liveStats.totalReviews > 0 ? `${liveStats.agreementRate}%` : "94.2%"}
-                </div>
-                <span className="text-[11px] text-muted-foreground">
-                  {liveStats.agreedCount} agreed of {liveStats.totalReviews || 24} reviews
-                </span>
+            {liveStats.totalReviews === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
+                <CheckCircle2 className="h-8 w-8 text-muted-foreground/40" />
+                <p className="text-sm font-semibold text-muted-foreground">No HSE reviews recorded yet</p>
+                <p className="text-xs text-muted-foreground max-w-xs">
+                  Agreement rate will appear here once HSE officers submit their first review in the Review Queue.
+                </p>
               </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4 my-4">
+                  <div className="rounded-lg border bg-muted/20 p-4 text-center">
+                    <span className="text-xs text-muted-foreground font-semibold">AI-HSE Agreement Rate</span>
+                    <div className="mt-2 text-3xl font-black text-foreground font-mono">
+                      {liveStats.agreementRate}%
+                    </div>
+                    <span className="text-[11px] text-muted-foreground">
+                      {liveStats.agreedCount} agreed of {liveStats.totalReviews} reviews
+                    </span>
+                  </div>
 
-              <div className="rounded-lg border bg-muted/20 p-4 text-center">
-                <span className="text-xs text-muted-foreground font-semibold">Human Override Rate</span>
-                <div className="mt-2 text-3xl font-black text-foreground font-mono text-amber-600">
-                  {liveStats.totalReviews > 0 ? `${(100 - liveStats.agreementRate).toFixed(1)}%` : "5.8%"}
+                  <div className="rounded-lg border bg-muted/20 p-4 text-center">
+                    <span className="text-xs text-muted-foreground font-semibold">Human Override Rate</span>
+                    <div className="mt-2 text-3xl font-black text-foreground font-mono text-amber-600">
+                      {(100 - liveStats.agreementRate).toFixed(1)}%
+                    </div>
+                    <span className="text-[11px] text-muted-foreground">
+                      {liveStats.overrodeCount} human corrections
+                    </span>
+                  </div>
                 </div>
-                <span className="text-[11px] text-muted-foreground">
-                  {liveStats.overrodeCount} human corrections
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between border-b pb-2">
-                <span className="text-muted-foreground">Average Human Review Response Time:</span>
-                <span className="font-mono font-bold">2.4 hours</span>
-              </div>
-              <div className="flex items-center justify-between border-b pb-2">
-                <span className="text-muted-foreground">Critical Escalations Reviewed within SLA:</span>
-                <span className="font-mono font-bold text-emerald-600">96.8%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Continuous Learning Model Drift:</span>
-                <span className="font-mono font-bold text-blue-600">Optimal (&lt; 1.2% delta)</span>
-              </div>
-            </div>
+              </>
+            )}
           </div>
 
           <div className="mt-4 pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">

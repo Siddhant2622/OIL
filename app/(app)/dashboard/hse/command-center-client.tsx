@@ -40,6 +40,10 @@ export interface CommandCenterData {
   criticalCount: number;
   reviewedCount: number;
   reviewedPct: number;
+  /** Percentage change vs previous period. null means no historical data available. */
+  periodDeltaReports: number | null;
+  /** Percentage change in SIF count vs previous period. null means no historical data. */
+  periodDeltaSif: number | null;
   trendData: { period: string; total: number; sif: number }[];
   topSites: { name: string; count: number; pct: number; sifCount: number }[];
   topActivities: { name: string; count: number; pct: number; sifCount: number }[];
@@ -60,7 +64,8 @@ export interface CommandCenterData {
     overdue: number;
     verified: number;
     slaRatePct: number;
-    avgDaysToClose: number;
+    /** Actual mean of (completed_at - created_at) for verified actions, in days. null = no verified actions yet. */
+    avgDaysToClose: number | null;
   };
 }
 
@@ -249,9 +254,14 @@ CORRECTIVE ACTION SLA:
           <div className="mt-2 text-3xl font-black text-foreground tabular-nums">
             {data.totalReports.toLocaleString()}
           </div>
-          <div className="mt-1 flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
-            <ArrowUpRight className="h-3 w-3" />
-            <span>+12.4% vs last period</span>
+          <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold">
+            {data.periodDeltaReports === null ? (
+              <span className="text-muted-foreground">— no prior period data</span>
+            ) : data.periodDeltaReports >= 0 ? (
+              <><ArrowUpRight className="h-3 w-3 text-emerald-600" /><span className="text-emerald-600">+{data.periodDeltaReports.toFixed(1)}% vs last period</span></>
+            ) : (
+              <><ArrowDownRight className="h-3 w-3 text-blue-600" /><span className="text-blue-600">{data.periodDeltaReports.toFixed(1)}% vs last period</span></>
+            )}
           </div>
           <div className="mt-1 text-[10px] text-muted-foreground">UA, UC, Near-Miss &amp; Incidents</div>
         </div>
@@ -269,9 +279,14 @@ CORRECTIVE ACTION SLA:
           <div className="mt-2 text-3xl font-black text-red-600 dark:text-red-400 tabular-nums">
             {data.sifCount.toLocaleString()}
           </div>
-          <div className="mt-1 flex items-center gap-1 text-[11px] text-red-600 font-bold">
-            <ArrowUpRight className="h-3 w-3" />
-            <span>↑ +18% 7-day velocity</span>
+          <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold">
+            {data.periodDeltaSif === null ? (
+              <span className="text-muted-foreground">— no prior period data</span>
+            ) : data.periodDeltaSif >= 0 ? (
+              <><ArrowUpRight className="h-3 w-3 text-red-600" /><span className="text-red-600">+{data.periodDeltaSif.toFixed(1)}% SIF vs last period</span></>
+            ) : (
+              <><ArrowDownRight className="h-3 w-3 text-emerald-600" /><span className="text-emerald-600">{data.periodDeltaSif.toFixed(1)}% SIF vs last period</span></>
+            )}
           </div>
           <div className="mt-1 text-[10px] text-muted-foreground">Carrying fatal or life-altering energy</div>
         </div>
@@ -651,7 +666,12 @@ CORRECTIVE ACTION SLA:
           </div>
           <div className="rounded-lg border bg-muted/20 p-3">
             <span className="text-xs text-muted-foreground font-semibold">Avg Closure Time</span>
-            <div className="text-2xl font-black text-foreground mt-1">{data.capaStats.avgDaysToClose}d</div>
+            <div className="text-2xl font-black text-foreground mt-1">
+              {data.capaStats.avgDaysToClose !== null ? `${data.capaStats.avgDaysToClose}d` : "—"}
+            </div>
+            {data.capaStats.avgDaysToClose === null && (
+              <div className="text-[10px] text-muted-foreground mt-0.5">No closed actions yet</div>
+            )}
           </div>
         </div>
       </div>
