@@ -19,7 +19,15 @@ import {
   Play,
 } from "lucide-react";
 
-export default function LandingPage() {
+export default async function LandingPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ [key: string]: string | undefined }>;
+}) {
+  const params = searchParams ? await searchParams : undefined;
+  const error = params?.error || params?.error_code;
+  const errorDesc = params?.error_description;
+
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       {/* ─── Nav ────────────────────────────────────────────────────── */}
@@ -77,6 +85,23 @@ export default function LandingPage() {
         </div>
 
         <div className="relative mx-auto max-w-5xl px-6 text-center">
+          {error && (
+            <div className="mb-6 mx-auto max-w-xl rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-300 text-left flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-amber-200">Google Sign-in Session Expired</p>
+                <p className="text-slate-300 mt-0.5 leading-relaxed">
+                  {errorDesc
+                    ? errorDesc.replace(/\+/g, " ")
+                    : "Your Google authentication session timed out or was interrupted."}{" "}
+                  <Link href="/login" className="underline font-semibold text-white hover:text-blue-300 ml-1">
+                    Click here to sign in again →
+                  </Link>
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold text-amber-400">
             <AlertTriangle className="h-3.5 w-3.5" />
             <span>Problem Statement SIH26165 — Oil India Limited (OIL)</span>

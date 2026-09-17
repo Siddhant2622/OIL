@@ -42,6 +42,36 @@ export default function NewReportPage() {
     is_sensitive?: boolean;
   } | null>(null);
 
+  const [attachments, setAttachments] = useState<
+    { name: string; type: string; size: number; url: string }[]
+  >([]);
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newAttachments: { name: string; type: string; size: number; url: string }[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.size > 5 * 1024 * 1024) {
+        setSubmitError(`File "${file.name}" exceeds 5MB limit`);
+        continue;
+      }
+      const reader = new FileReader();
+      const dataUrl = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+      newAttachments.push({
+        name: file.name,
+        type: file.type || "application/octet-stream",
+        size: file.size,
+        url: dataUrl,
+      });
+    }
+    setAttachments((prev) => [...prev, ...newAttachments]);
+  }
+
   const {
     register,
     handleSubmit,
@@ -67,7 +97,7 @@ export default function NewReportPage() {
       const res = await fetch("/api/reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, attachments }),
       });
 
       const json = await res.json();
@@ -362,6 +392,57 @@ export default function NewReportPage() {
               <option value="Evening">Evening</option>
             </select>
           </div>
+        </div>
+
+        {/* Optional Photo / PDF Attachments */}
+        <div>
+          <label className={labelClass}>
+            Optional Photo / PDF Attachments
+          </label>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Attach site photos, equipment images, or PTW/JSA documents (max 5MB each).
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-input bg-background/50 px-4 py-2.5 text-xs font-medium text-muted-foreground transition hover:border-primary hover:text-foreground">
+              <Camera className="h-4 w-4 text-orange-500" />
+              <span>Attach Photo or PDF</span>
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                multiple
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+            </label>
+          </div>
+
+          {attachments.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {attachments.map((att, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-1.5 text-xs"
+                >
+                  <span className="max-w-[200px] truncate font-medium text-foreground">
+                    {att.name}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    ({Math.round(att.size / 1024)} KB)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAttachments((prev) => prev.filter((_, i) => i !== idx))
+                    }
+                    className="text-muted-foreground hover:text-red-500 font-bold ml-1"
+                    title="Remove attachment"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Error */}

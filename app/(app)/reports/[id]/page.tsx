@@ -22,6 +22,9 @@ import {
   ExternalLink,
   Sparkles,
   Quote,
+  Paperclip,
+  FileText,
+  Camera,
 } from "lucide-react";
 import { formatDateTime, reportTypeLabels } from "@/lib/utils";
 
@@ -316,6 +319,62 @@ export default async function ReportDetailPage({ params }: Props) {
               <p className="text-sm text-foreground">{report.immediate_action}</p>
             </div>
           )}
+
+          {/* Attachments (Photos / PDF) */}
+          {(report.attachments as { name: string; type: string; size?: number; url?: string }[])?.length ? (
+            <div className="rounded-xl border bg-card p-6">
+              <h2 className="mb-3 font-semibold text-base flex items-center gap-2">
+                <Paperclip className="h-4 w-4 text-primary" />
+                Attached Photos &amp; Documents
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(report.attachments as { name: string; type: string; size?: number; url?: string }[]).map((att, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-3 rounded-lg border bg-muted/20 p-3"
+                  >
+                    {att.type?.startsWith("image/") ? (
+                      att.url ? (
+                        <img
+                          src={att.url}
+                          alt={att.name}
+                          className="h-14 w-14 rounded-lg object-cover border"
+                        />
+                      ) : (
+                        <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                          <Camera className="h-6 w-6" />
+                        </div>
+                      )
+                    ) : (
+                      <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400">
+                        <FileText className="h-6 w-6" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold text-foreground">
+                        {att.name}
+                      </p>
+                      {att.size && (
+                        <p className="text-[10px] text-muted-foreground font-mono">
+                          {Math.round(att.size / 1024)} KB
+                        </p>
+                      )}
+                      {att.url && (
+                        <a
+                          href={att.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-flex items-center gap-1 text-xs text-blue-500 hover:underline"
+                        >
+                          View full size
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {/* Section 3: Similar Historical Cases (pgvector Semantic Search) */}
           <div className="rounded-xl border bg-card p-6">

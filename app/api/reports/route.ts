@@ -15,6 +15,16 @@ const schema = z.object({
   contractor: z.string().optional(),
   shift: z.string().optional(),
   site_id: z.string().uuid().optional(),
+  attachments: z
+    .array(
+      z.object({
+        name: z.string(),
+        type: z.string(),
+        size: z.number().optional(),
+        url: z.string().optional(),
+      })
+    )
+    .optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -81,6 +91,7 @@ export async function POST(request: NextRequest) {
       reported_severity: parsed.data.reported_severity ?? null,
       contractor: parsed.data.contractor ?? null,
       shift: parsed.data.shift ?? null,
+      attachments: parsed.data.attachments ?? [],
       source: "WEB",
       status: "SUBMITTED",
     })
