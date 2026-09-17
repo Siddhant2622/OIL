@@ -72,6 +72,10 @@ export async function GET(request: NextRequest) {
     if (!profile.is_active) {
       return NextResponse.redirect(`${origin}/deactivated`);
     }
+    const nextParam = searchParams.get("next");
+    if (nextParam && nextParam.startsWith("/")) {
+      return NextResponse.redirect(`${origin}${nextParam}`);
+    }
     return NextResponse.redirect(`${origin}/dashboard`);
   }
 

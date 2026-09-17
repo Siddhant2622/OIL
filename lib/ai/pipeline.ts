@@ -11,6 +11,7 @@ import { analyseReport, embedDescription, PROMPT_VERSION } from "./gemini";
 import { applyGuardrails } from "./guardrails";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendSensitiveAlertEmail } from "@/lib/email";
+import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
 import { findSimilarHistoricalReports, formatSimilarCasesForPrompt } from "./similarity";
 import type { ReportRow, ProfileRow, RiskBand } from "@/types/database";
 
@@ -182,7 +183,7 @@ async function notifySensitive(
   // Collect manager chain + all HSE_MANAGER and ORG_ADMIN in the org
   const { data: hseUsers } = await admin
     .from("profiles")
-    .select("id, email, full_name")
+    .select("id, email, full_name, phone, whatsapp_verified")
     .eq("org_id", report.org_id)
     .in("role", ["HSE_MANAGER", "ORG_ADMIN"])
     .eq("is_active", true);
@@ -196,10 +197,14 @@ async function notifySensitive(
   ].filter((p) => p.id !== reporter.id);
 
   // De-duplicate by id
-  const uniquePersonnelMap = new Map<string, { id: string; email: string }>();
+  const uniquePersonnelMap = new Map<string, { id: string; email: string; phone?: string | null }>();
   safetyPersonnel.forEach((p) => {
     if (p.id && !uniquePersonnelMap.has(p.id)) {
-      uniquePersonnelMap.set(p.id, { id: p.id, email: p.email });
+      uniquePersonnelMap.set(p.id, {
+        id: p.id,
+        email: p.email,
+        phone: (p as any).phone ?? null,
+      });
     }
   });
 
@@ -264,6 +269,56 @@ async function notifySensitive(
     });
   }
 
+  // Send real-time WhatsApp alert to unique safety personnel with phone numbers
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://oilgas-pied.vercel.app";
+  const whatsappRecipients = Array.from(
+    new Set(
+      Array.from(uniquePersonnelMap.values())
+        .map((u) => u.phone)
+        .filter((p): p is string => Boolean(p && p.trim().length >= 8))
+    )
+  );
+
+  if (whatsappRecipients.length > 0) {
+    const waAlertBody = [
+      `🚨 *URGENT SIF ALERT: ${band}*`,
+      ``,
+      `📋 *Report Code:* ${report.report_code}`,
+      `🏷️ *Type:* ${report.report_type.replace(/_/g, " ")}`,
+      report.location_text ? `📍 *Location:* ${report.location_text}` : null,
+      analysisResult.hazard ? `⚠️ *Hazard:* ${analysisResult.hazard}` : null,
+      analysisResult.energy_source ? `⚡ *Energy Source:* ${analysisResult.energy_source}` : null,
+      analysisResult.lsr_tags?.length ? `🛡️ *Life-Saving Rule:* ${analysisResult.lsr_tags.join(", ")}` : null,
+      ``,
+      `📝 *Narrative Preview:*`,
+      `"${report.description.slice(0, 160)}${report.description.length > 160 ? "…" : ""}"`,
+      ``,
+      `👉 *Tap to Review & Issue CAPA:*`,
+      `${appUrl}/reports/${report.id}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    for (const phone of whatsappRecipients) {
+      sendWhatsAppMessage({
+        to: phone,
+        body: waAlertBody,
+      }).catch((err) => {
+        console.warn(`[pipeline] WhatsApp alert to ${phone} failed:`, err?.message);
+      });
+    }
+  }
+
+  // If reporter has WhatsApp on file, notify them too
+  if (reporter.phone && reporter.phone.trim().length >= 8) {
+    sendWhatsAppMessage({
+      to: reporter.phone,
+      body: `ℹ️ *Safety Update (${report.report_code})*\nYour report has been evaluated as *${band}* priority by AI. Management and HSE have been alerted.\n\n🔗 View details: ${appUrl}/reports/${report.id}`,
+    }).catch((err) => {
+      console.warn("[pipeline] Reporter WhatsApp update non-fatal:", err?.message);
+    });
+  }
+
   // Audit
   await admin.from("audit_log").insert({
     org_id: report.org_id,
@@ -276,6 +331,7 @@ async function notifySensitive(
       sif_potential: analysisResult.sif_potential,
       recipient_count: notifications.length,
       email_count: emailRecipients.length,
+      whatsapp_count: whatsappRecipients.length,
       report_code: report.report_code,
     },
   });
@@ -284,20 +340,25 @@ async function notifySensitive(
 async function getManagerProfiles(
   admin: ReturnType<typeof createAdminClient>,
   manager_id: string | null
-): Promise<{ id: string; email: string; full_name: string | null }[]> {
-  const chain: { id: string; email: string; full_name: string | null }[] = [];
+): Promise<{ id: string; email: string; full_name: string | null; phone?: string | null }[]> {
+  const chain: { id: string; email: string; full_name: string | null; phone?: string | null }[] = [];
   let current = manager_id;
   let depth = 0;
 
   while (current && depth < 10) {
     const { data: mgr } = await admin
       .from("profiles")
-      .select("id, email, full_name, manager_id")
+      .select("id, email, full_name, phone, manager_id")
       .eq("id", current)
       .single();
 
     if (!mgr) break;
-    chain.push({ id: mgr.id, email: mgr.email, full_name: mgr.full_name });
+    chain.push({
+      id: mgr.id,
+      email: mgr.email,
+      full_name: mgr.full_name,
+      phone: (mgr as any).phone ?? null,
+    });
     current = mgr.manager_id ?? null;
     depth++;
   }

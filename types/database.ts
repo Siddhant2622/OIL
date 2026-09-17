@@ -103,6 +103,7 @@ export interface Database {
           department: string | null;
           site_id: string | null;
           phone: string | null;
+          whatsapp_verified?: boolean;
           is_active: boolean;
           created_at: string;
         };
@@ -118,6 +119,7 @@ export interface Database {
           department?: string | null;
           site_id?: string | null;
           phone?: string | null;
+          whatsapp_verified?: boolean;
           is_active?: boolean;
           created_at?: string;
         };

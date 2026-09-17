@@ -3,16 +3,19 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export function LoginButton() {
+export function LoginButton({ next }: { next?: string } = {}) {
   const [loading, setLoading] = useState(false);
 
   async function handleGoogleLogin() {
     setLoading(true);
     const supabase = createClient();
-    const redirectUrl =
+    const base =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback`
-        : `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/auth/callback`;
+        ? window.location.origin
+        : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+    const redirectUrl = next
+      ? `${base}/auth/callback?next=${encodeURIComponent(next)}`
+      : `${base}/auth/callback`;
 
     await supabase.auth.signInWithOAuth({
       provider: "google",
