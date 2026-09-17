@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { RiskBadge, StatusBadge } from "@/components/ui-components";
 import { EvidenceHighlight } from "./evidence-highlight";
 import { AnalyzeButton } from "./analyze-button";
+import { AutoRefresh } from "./auto-refresh";
 import {
   ArrowLeft,
   Zap,
@@ -115,6 +116,8 @@ export default async function ReportDetailPage({ params }: Props) {
           <AnalyzeButton reportId={report.id} />
         )}
       </div>
+
+      <AutoRefresh status={report.status} />
 
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Left: Narrative */}

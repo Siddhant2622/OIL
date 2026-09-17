@@ -10,6 +10,7 @@
 import { analyseReport, embedDescription, PROMPT_VERSION } from "./gemini";
 import { applyGuardrails } from "./guardrails";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendSensitiveAlertEmail } from "@/lib/email";
 import type { ReportRow, ProfileRow, RiskBand } from "@/types/database";
 
 export interface PipelineInput {
@@ -20,6 +21,9 @@ export interface PipelineInput {
 export interface PipelineResult {
   success: boolean;
   analysis_id?: string;
+  risk_band?: RiskBand;
+  sif_potential?: boolean;
+  is_sensitive?: boolean;
   error?: string;
 }
 
@@ -99,6 +103,12 @@ export async function runAnalysisPipeline(
     }
 
     // ── 6. Route: determine next status ──────────────────────────────────────
+    const isSensitive =
+      result.risk_band === "CRITICAL" ||
+      result.risk_band === "HIGH" ||
+      result.sif_potential ||
+      result.immediate_action_required;
+
     const nextStatus = determineStatus(result);
 
     await admin
@@ -106,12 +116,9 @@ export async function runAnalysisPipeline(
       .update({ status: nextStatus })
       .eq("id", report.id);
 
-    // ── 7. Notify on CRITICAL / immediate action ──────────────────────────────
-    if (
-      result.risk_band === "CRITICAL" ||
-      result.immediate_action_required
-    ) {
-      await notifyCritical(admin, report, reporter, result.risk_band as RiskBand);
+    // ── 7. Notify on sensitive / CRITICAL / HIGH SIF / immediate action ───────
+    if (isSensitive) {
+      await notifySensitive(admin, report, reporter, result);
     }
 
     // ── 8. Embed for clustering (fire-and-forget) ────────────────────────────
@@ -120,7 +127,13 @@ export async function runAnalysisPipeline(
         console.warn("[pipeline] Embedding failed (non-fatal):", err?.message)
     );
 
-    return { success: true, analysis_id: analysis.id };
+    return {
+      success: true,
+      analysis_id: analysis.id,
+      risk_band: result.risk_band as RiskBand,
+      sif_potential: result.sif_potential,
+      is_sensitive: isSensitive,
+    };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[pipeline] Analysis failed:", message);
@@ -140,10 +153,13 @@ export async function runAnalysisPipeline(
 function determineStatus(
   result: ReturnType<typeof applyGuardrails>["result"]
 ): string {
-  if (result.risk_band === "CRITICAL" || result.immediate_action_required) {
-    return "IN_REVIEW";
-  }
-  if (result.needs_human_review) {
+  if (
+    result.risk_band === "CRITICAL" ||
+    result.risk_band === "HIGH" ||
+    result.sif_potential ||
+    result.immediate_action_required ||
+    result.needs_human_review
+  ) {
     return "IN_REVIEW";
   }
   return "ANALYZED";
@@ -174,76 +190,134 @@ async function fetchHistoricalContext(
   return `${similar.length} similar recent reports at this location:\n${summaries}`;
 }
 
-async function notifyCritical(
+async function notifySensitive(
   admin: ReturnType<typeof createAdminClient>,
   report: ReportRow,
   reporter: ProfileRow,
-  band: RiskBand
+  analysisResult: ReturnType<typeof applyGuardrails>["result"]
 ) {
+  const band = analysisResult.risk_band as RiskBand;
+
   // Collect manager chain + all HSE_MANAGER and ORG_ADMIN in the org
   const { data: hseUsers } = await admin
     .from("profiles")
-    .select("id")
+    .select("id, email, full_name")
     .eq("org_id", report.org_id)
     .in("role", ["HSE_MANAGER", "ORG_ADMIN"])
     .eq("is_active", true);
 
-  const managerChain = await getManagerChain(admin, reporter.manager_id);
-  const recipientIds = [
-    ...new Set([
-      ...(hseUsers?.map((u) => u.id) ?? []),
-      ...managerChain,
-    ]),
-  ].filter((id) => id !== reporter.id);
+  const managerProfiles = await getManagerProfiles(admin, reporter.manager_id);
 
+  // Safety team & management recipients
+  const safetyPersonnel = [
+    ...(hseUsers ?? []),
+    ...managerProfiles,
+  ].filter((p) => p.id !== reporter.id);
+
+  // De-duplicate by id
+  const uniquePersonnelMap = new Map<string, { id: string; email: string }>();
+  safetyPersonnel.forEach((p) => {
+    if (p.id && !uniquePersonnelMap.has(p.id)) {
+      uniquePersonnelMap.set(p.id, { id: p.id, email: p.email });
+    }
+  });
+
+  const hazardText = analysisResult.hazard ? ` (${analysisResult.hazard})` : "";
   const title = `🚨 ${band} SIF Alert: ${report.report_code}`;
-  const body = `A ${band}-risk SIF precursor was detected. Immediate review required.`;
+  const body = `A ${band}-risk SIF precursor was detected${hazardText}. Immediate safety review required.`;
   const link = `/reports/${report.id}`;
+  const alertType = band === "CRITICAL" ? "CRITICAL_SIF_ALERT" : "HIGH_SIF_ALERT";
 
-  const notifications = recipientIds.map((user_id) => ({
+  const notifications = Array.from(uniquePersonnelMap.values()).map((u) => ({
     org_id: report.org_id,
-    user_id,
-    type: "CRITICAL_SIF_ALERT",
+    user_id: u.id,
+    type: alertType,
     title,
     body,
     link,
   }));
 
+  // Also send an informative confirmation to the reporter
+  if (reporter.id) {
+    notifications.push({
+      org_id: report.org_id,
+      user_id: reporter.id,
+      type: "SIF_PRECURSOR_DETECTED",
+      title: `Observation Flagged (${band}): ${report.report_code}`,
+      body: `Your safety observation has been assessed as high priority by AI. Management and HSE teams have been alerted.`,
+      link,
+    });
+  }
+
   if (notifications.length > 0) {
-    await admin.from("notifications").insert(notifications);
+    const { error: notifErr } = await admin.from("notifications").insert(notifications);
+    if (notifErr) {
+      console.warn("[pipeline] Failed to insert notifications:", notifErr.message);
+    }
+  }
+
+  // Send Resend email to unique safety personnel emails + reporter if email exists
+  const emailRecipients = Array.from(
+    new Set(
+      Array.from(uniquePersonnelMap.values())
+        .map((u) => u.email)
+        .filter((e): e is string => Boolean(e && e.includes("@")))
+    )
+  );
+
+  if (emailRecipients.length > 0) {
+    sendSensitiveAlertEmail({
+      to: emailRecipients,
+      reportCode: report.report_code,
+      reportType: report.report_type,
+      riskBand: band,
+      sifPotential: analysisResult.sif_potential,
+      hazard: analysisResult.hazard,
+      energySource: analysisResult.energy_source,
+      lsrTags: analysisResult.lsr_tags,
+      location: report.location_text ?? undefined,
+      reportId: report.id,
+      description: report.description,
+    }).catch((err) => {
+      console.warn("[pipeline] Email delivery non-fatal error:", err?.message);
+    });
   }
 
   // Audit
   await admin.from("audit_log").insert({
     org_id: report.org_id,
     actor_id: null,
-    action: "CRITICAL_ALERT_SENT",
+    action: "SENSITIVE_ALERT_SENT",
     entity: "reports",
     entity_id: report.id,
     meta: {
       band,
-      recipient_count: recipientIds.length,
+      sif_potential: analysisResult.sif_potential,
+      recipient_count: notifications.length,
+      email_count: emailRecipients.length,
       report_code: report.report_code,
     },
   });
 }
 
-async function getManagerChain(
+async function getManagerProfiles(
   admin: ReturnType<typeof createAdminClient>,
   manager_id: string | null
-): Promise<string[]> {
-  const chain: string[] = [];
+): Promise<{ id: string; email: string; full_name: string | null }[]> {
+  const chain: { id: string; email: string; full_name: string | null }[] = [];
   let current = manager_id;
   let depth = 0;
 
   while (current && depth < 10) {
-    chain.push(current);
     const { data: mgr } = await admin
       .from("profiles")
-      .select("manager_id")
+      .select("id, email, full_name, manager_id")
       .eq("id", current)
       .single();
-    current = mgr?.manager_id ?? null;
+
+    if (!mgr) break;
+    chain.push({ id: mgr.id, email: mgr.email, full_name: mgr.full_name });
+    current = mgr.manager_id ?? null;
     depth++;
   }
 

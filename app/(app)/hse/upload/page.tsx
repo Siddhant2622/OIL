@@ -7,6 +7,8 @@ import { Upload, FileText, CheckCircle2, AlertTriangle, Loader2 } from "lucide-r
 interface UploadResult {
   total: number;
   created: number;
+  scanned?: number;
+  sensitive_count?: number;
   errors: string[];
   report_ids: string[];
 }
@@ -159,35 +161,57 @@ export default function BulkUploadPage() {
       )}
 
       {result && (
-        <div className="rounded-xl border border-green-200 bg-green-50 p-6 dark:border-green-900 dark:bg-green-950/20">
-          <div className="flex items-center gap-2 mb-4">
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm space-y-5">
+          <div className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-green-600" />
-            <h2 className="font-semibold text-green-800 dark:text-green-200">
-              Upload Complete
+            <h2 className="font-semibold text-foreground text-lg">
+              Upload &amp; Direct AI Scan Complete
             </h2>
           </div>
-          <div className="grid grid-cols-3 gap-4 text-center mb-4">
-            <div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div className="rounded-xl border bg-muted/30 p-3">
               <p className="text-2xl font-bold tabular-nums">{result.total}</p>
-              <p className="text-xs text-muted-foreground">Total rows</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Total rows</p>
             </div>
-            <div>
+            <div className="rounded-xl border bg-muted/30 p-3">
               <p className="text-2xl font-bold tabular-nums text-green-600">{result.created}</p>
-              <p className="text-xs text-muted-foreground">Created</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Created</p>
             </div>
-            <div>
-              <p className={`text-2xl font-bold tabular-nums ${result.errors.length ? "text-red-600" : ""}`}>
-                {result.errors.length}
+            <div className="rounded-xl border bg-muted/30 p-3">
+              <p className="text-2xl font-bold tabular-nums text-blue-600">{result.scanned ?? result.created}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">AI Scanned</p>
+            </div>
+            <div className="rounded-xl border bg-muted/30 p-3">
+              <p className={`text-2xl font-bold tabular-nums ${(result.sensitive_count ?? 0) > 0 ? "text-red-600" : "text-muted-foreground"}`}>
+                {result.sensitive_count ?? 0}
               </p>
-              <p className="text-xs text-muted-foreground">Errors</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Sensitive SIFs</p>
             </div>
           </div>
+
+          {(result.sensitive_count ?? 0) > 0 && (
+            <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-sm">🚨 Sensitive Safety Hazards Detected</p>
+                <p className="mt-0.5 leading-relaxed">
+                  {result.sensitive_count} report(s) in this upload were flagged as high/critical SIF potential.
+                  Emergency in-app notifications and email alerts have been automatically dispatched to managers and HSE teams.
+                </p>
+              </div>
+            </div>
+          )}
+
           {result.errors.length > 0 && (
-            <ul className="mb-4 space-y-1">
-              {result.errors.slice(0, 5).map((e, i) => (
-                <li key={i} className="text-xs text-red-700">{e}</li>
-              ))}
-            </ul>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+              <p className="font-semibold mb-1">CSV Errors ({result.errors.length}):</p>
+              <ul className="space-y-1">
+                {result.errors.slice(0, 5).map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+              </ul>
+            </div>
           )}
           <button
             onClick={() => router.push("/reports")}

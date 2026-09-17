@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { runAnalysisPipeline } from "@/lib/ai/pipeline";
 import { z } from "zod";
 
 const schema = z.object({
@@ -36,10 +37,10 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Get reporter profile
+  // Get full reporter profile
   const { data: profile } = await admin
     .from("profiles")
-    .select("org_id, site_id")
+    .select("*")
     .eq("id", user.id)
     .single();
 
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
       source: "WEB",
       status: "SUBMITTED",
     })
-    .select("id, report_code")
+    .select("*")
     .single();
 
   if (error || !report) {
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to create report" }, { status: 500 });
   }
 
-  // Audit
+  // Audit report creation
   await admin.from("audit_log").insert({
     org_id: profile.org_id,
     actor_id: user.id,
@@ -101,7 +102,26 @@ export async function POST(request: NextRequest) {
     meta: { report_code, report_type: parsed.data.report_type },
   });
 
-  return NextResponse.json({ id: report.id, report_code: report.report_code });
+  // Directly scan the uploaded report with AI
+  let analysisResult: Awaited<ReturnType<typeof runAnalysisPipeline>> | null = null;
+  try {
+    analysisResult = await runAnalysisPipeline({
+      report,
+      reporter: profile,
+    });
+  } catch (scanErr) {
+    console.error("[reports POST] Direct AI scan exception:", scanErr);
+  }
+
+  return NextResponse.json({
+    id: report.id,
+    report_code: report.report_code,
+    analyzed: analysisResult?.success ?? false,
+    analysis_id: analysisResult?.analysis_id ?? null,
+    risk_band: analysisResult?.risk_band ?? null,
+    sif_potential: analysisResult?.sif_potential ?? false,
+    is_sensitive: analysisResult?.is_sensitive ?? false,
+  });
 }
 
 export async function GET(request: NextRequest) {

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { cn, roleLabels } from "@/lib/utils";
 import type { ProfileRow, UserRole } from "@/types/database";
+import { NotificationBell } from "./notification-bell";
 
 interface NavItem {
   href: string;
@@ -49,6 +50,12 @@ const NAV_ITEMS: NavItem[] = [
     href: "/reports",
     label: "Reports",
     icon: FileText,
+    roles: ["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD", "SUPERVISOR", "EMPLOYEE"],
+  },
+  {
+    href: "/notifications",
+    label: "Alerts",
+    icon: Bell,
     roles: ["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD", "SUPERVISOR", "EMPLOYEE"],
   },
   {
@@ -263,15 +270,5 @@ export function AppShell({ profile, children }: AppShellProps) {
         </main>
       </div>
     </div>
-  );
-}
-
-function NotificationBell() {
-  return (
-    <button className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-      <Bell className="h-5 w-5" />
-      {/* Unread dot — wired to Supabase Realtime in Phase 9 */}
-      <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
-    </button>
   );
 }

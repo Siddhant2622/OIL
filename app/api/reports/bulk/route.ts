@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { runAnalysisPipeline } from "@/lib/ai/pipeline";
 
 interface CsvRow {
   report_type?: string;
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
   const { data: profile } = await admin
-    .from("profiles").select("org_id, role, site_id").eq("id", user.id).single();
+    .from("profiles").select("*").eq("id", user.id).single();
 
   if (!profile || !["ORG_ADMIN", "HSE_MANAGER"].includes(profile.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -108,17 +109,49 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Directly scan created reports with AI
+  let scannedCount = 0;
+  let sensitiveCount = 0;
+
+  if (created.length > 0) {
+    const { data: createdReports } = await admin
+      .from("reports")
+      .select("*")
+      .in("id", created);
+
+    if (createdReports && createdReports.length > 0) {
+      for (const rep of createdReports) {
+        try {
+          const res = await runAnalysisPipeline({ report: rep, reporter: profile });
+          if (res.success) scannedCount++;
+          if (res.is_sensitive) sensitiveCount++;
+        } catch (scanErr) {
+          console.warn(`[bulk] Error scanning report ${rep.id}:`, scanErr);
+        }
+      }
+    }
+  }
+
   // Audit
   await admin.from("audit_log").insert({
     org_id: profile.org_id,
     actor_id: user.id,
     action: "BULK_UPLOAD",
-    meta: { total: rows.length, created: created.length, errors: errors.length, file: file.name },
+    meta: {
+      total: rows.length,
+      created: created.length,
+      scanned: scannedCount,
+      sensitive_count: sensitiveCount,
+      errors: errors.length,
+      file: file.name,
+    },
   });
 
   return NextResponse.json({
     total: rows.length,
     created: created.length,
+    scanned: scannedCount,
+    sensitive_count: sensitiveCount,
     report_ids: created,
     errors,
   });

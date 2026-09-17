@@ -82,3 +82,11 @@
 **Date**: 2026-09-16  
 **Decision**: Dark mode implemented via `next-themes` with `ThemeProvider` wrapper.  
 **Rationale**: Spec required a dark-capable design system. `next-themes` is the standard Next.js solution and integrates with our Tailwind CSS variable-based design tokens automatically.
+
+---
+
+## 011 — Direct AI Scanning on Report Upload and Multi-Channel Sensitive SIF Dispatch
+
+**Date**: 2026-09-17  
+**Decision**: When reports are uploaded via single report submission or bulk CSV, the AI analysis pipeline (`runAnalysisPipeline`) is triggered immediately server-side. If the report is classified as "sensitive" (`risk_band === "CRITICAL"` | `"HIGH"`, `sif_potential: true`, or `immediate_action_required: true`), the pipeline dispatches emergency in-app notifications to the reporter's manager chain and HSE team (stored in `notifications` table) and sends formatted HTML email alerts via Resend when configured.  
+**Rationale**: Eliminates asynchronous client-side race conditions where report submission would complete before analysis was requested. Ensures critical and high SIF precursors are instantly visible to safety management within seconds of upload.

@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Camera, Upload } from "lucide-react";
+import { AlertTriangle, Camera, Upload, Flame, BellRing, ArrowRight, CheckCircle2 } from "lucide-react";
 
 const schema = z.object({
   report_type: z.enum(["UNSAFE_ACT", "UNSAFE_CONDITION", "NEAR_MISS", "INCIDENT"]),
@@ -34,6 +34,13 @@ export default function NewReportPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [scanResult, setScanResult] = useState<{
+    id: string;
+    report_code: string;
+    risk_band?: string | null;
+    sif_potential?: boolean;
+    is_sensitive?: boolean;
+  } | null>(null);
 
   const {
     register,
@@ -70,19 +77,113 @@ export default function NewReportPage() {
         return;
       }
 
-      // Trigger analysis in background
-      fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ report_id: json.id }),
-      }).catch(() => {});
-
-      router.push(`/reports/${json.id}`);
+      // If sensitive or scanned, show the confirmation screen
+      if (json.is_sensitive) {
+        setScanResult(json);
+      } else {
+        router.push(`/reports/${json.id}`);
+      }
     } catch (err) {
       setSubmitError("Network error. Please try again.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (scanResult) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div
+          className={`rounded-2xl border p-6 sm:p-8 ${
+            scanResult.is_sensitive
+              ? "border-red-300 bg-red-50/70 dark:border-red-900/80 dark:bg-red-950/30"
+              : "border-green-300 bg-green-50/70 dark:border-green-900/80 dark:bg-green-950/30"
+          }`}
+        >
+          <div className="flex items-start gap-4">
+            <div
+              className={`rounded-xl p-3 shrink-0 ${
+                scanResult.is_sensitive
+                  ? "bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400"
+                  : "bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400"
+              }`}
+            >
+              {scanResult.is_sensitive ? (
+                <Flame className="h-8 w-8" />
+              ) : (
+                <CheckCircle2 className="h-8 w-8" />
+              )}
+            </div>
+
+            <div className="space-y-3 flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-xs font-bold text-muted-foreground">
+                  {scanResult.report_code}
+                </span>
+                {scanResult.risk_band && (
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${
+                      scanResult.risk_band === "CRITICAL"
+                        ? "bg-red-600 text-white"
+                        : scanResult.risk_band === "HIGH"
+                        ? "bg-orange-600 text-white"
+                        : "bg-blue-600 text-white"
+                    }`}
+                  >
+                    {scanResult.risk_band}
+                  </span>
+                )}
+              </div>
+
+              <h2 className="text-xl font-bold text-foreground">
+                {scanResult.is_sensitive
+                  ? "🚨 Sensitive SIF Precursor Detected & Alert Sent"
+                  : "Report Uploaded & Scanned Successfully"}
+              </h2>
+
+              <p className="text-sm text-foreground/80 leading-relaxed">
+                {scanResult.is_sensitive
+                  ? `SIF Sentinel AI directly scanned your report upon upload and identified a ${scanResult.risk_band} risk precursor. Immediate in-app notifications and email alerts have been automatically dispatched to HSE Managers and your manager chain.`
+                  : "The AI safety engine directly analyzed your observation. No critical life-threatening precursor was detected."}
+              </p>
+
+              {scanResult.is_sensitive && (
+                <div className="rounded-xl border border-red-200 dark:border-red-900/40 bg-card/60 p-3.5 text-xs space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-semibold text-red-700 dark:text-red-400">
+                    <BellRing className="h-4 w-4" /> Automated Notifications Dispatched
+                  </div>
+                  <p className="text-muted-foreground">
+                    ✓ In-app alert logged for all HSE personnel and management hierarchy.
+                  </p>
+                  <p className="text-muted-foreground">
+                    ✓ Report moved to Priority Review Queue for immediate CAPA verification.
+                  </p>
+                </div>
+              )}
+
+              <div className="pt-3 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => router.push(`/reports/${scanResult.id}`)}
+                  className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground hover:opacity-90 flex items-center gap-2 shadow-sm"
+                >
+                  View Full Report &amp; Evidence
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setScanResult(null);
+                    router.push("/reports");
+                  }}
+                  className="rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold hover:bg-muted text-foreground"
+                >
+                  Back to Reports
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const inputClass =
@@ -279,7 +380,7 @@ export default function NewReportPage() {
           id="submit-report-btn"
         >
           {submitting
-            ? "Submitting… AI analysis will begin automatically"
+            ? "Submitting & running direct AI scan…"
             : "Submit Report"}
         </button>
 
