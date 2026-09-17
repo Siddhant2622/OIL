@@ -258,23 +258,43 @@ export function AppShell({ profile, children }: AppShellProps) {
       </aside>
 
       {/* ── Main area ───────────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         {/* Top bar */}
-        <header className="flex h-16 items-center justify-between border-b bg-background px-4 lg:px-6">
-          <button
-            className="rounded-md p-2 text-muted-foreground hover:text-foreground lg:hidden"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+        <header className="flex h-16 items-center justify-between border-b bg-background px-3 sm:px-4 lg:px-6">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
 
-          {/* Search placeholder */}
-          <div className="hidden md:flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground w-64">
-            <Search className="h-4 w-4" />
-            <span>Search reports, people…</span>
+            {/* Mobile logo branding */}
+            <Link href="/dashboard" className="flex items-center gap-2 lg:hidden">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 shadow-xs">
+                <Shield className="h-4 w-4 text-white" />
+              </div>
+              <span className="text-sm font-bold tracking-tight text-foreground">SIF Sentinel</span>
+            </Link>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Search placeholder (tablet/desktop) */}
+          <div className="hidden md:flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground w-64">
+            <Search className="h-4 w-4" />
+            <span className="text-xs">Search reports, people…</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Quick Report Hazard button on mobile header */}
+            <Link
+              href="/reports/new"
+              className="inline-flex sm:hidden items-center gap-1 rounded-lg bg-orange-600 px-2.5 py-1 text-xs font-bold text-white shadow-xs"
+            >
+              <AlertTriangle className="h-3 w-3" />
+              <span>Report</span>
+            </Link>
+
             {/* Notifications */}
             <NotificationBell />
 
@@ -286,8 +306,8 @@ export function AppShell({ profile, children }: AppShellProps) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-7xl p-4 lg:p-6">{children}</div>
+        <main className="flex-1 overflow-y-auto min-w-0">
+          <div className="mx-auto max-w-7xl p-3 sm:p-5 lg:p-6">{children}</div>
         </main>
       </div>
     </div>

@@ -179,10 +179,10 @@ export default async function ReportDetailPage({ params }: Props) {
 
       {/* Section 4: Why was this classified as SIF? (Evidence & Reasoning Matrix) */}
       {analysis && (
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-          <div className="flex items-center justify-between border-b pb-4 mb-5">
+        <div className="rounded-xl border bg-card p-4 sm:p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 mb-5 gap-3">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400">
                 <Sparkles className="h-5 w-5" />
               </div>
               <div>
@@ -192,7 +192,7 @@ export default async function ReportDetailPage({ params }: Props) {
                 </p>
               </div>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <div className="text-xs text-muted-foreground font-medium">Model Confidence</div>
               <div className="text-lg font-black font-mono text-foreground">
                 {(analysis.sif_confidence * 100).toFixed(1)}%
@@ -200,7 +200,7 @@ export default async function ReportDetailPage({ params }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="rounded-lg border bg-muted/20 p-4">
               <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
                 <Zap className="h-3.5 w-3.5" /> Hazardous Energy

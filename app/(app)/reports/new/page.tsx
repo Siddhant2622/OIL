@@ -217,12 +217,12 @@ export default function NewReportPage() {
   }
 
   const inputClass =
-    "w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition";
+    "w-full rounded-xl border border-input bg-background px-4 py-3 text-base sm:text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition";
   const labelClass = "mb-1.5 block text-sm font-semibold text-foreground";
   const errorClass = "mt-1 text-xs text-red-600";
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl px-1 sm:px-0">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Report a Hazard</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -236,11 +236,11 @@ export default function NewReportPage() {
           <legend className={labelClass}>
             Report type <span className="text-red-500">*</span>
           </legend>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {REPORT_TYPES.map((type) => (
               <label
                 key={type.value}
-                className={`cursor-pointer rounded-xl border-2 p-3 text-center text-sm font-semibold transition ${
+                className={`cursor-pointer rounded-xl border-2 p-3 sm:p-3 min-h-[48px] flex items-center justify-center text-center text-xs sm:text-sm font-semibold transition ${
                   selectedType === type.value
                     ? type.color + " shadow-sm"
                     : "border-border bg-card text-muted-foreground hover:border-primary/40"

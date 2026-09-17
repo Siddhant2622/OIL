@@ -247,9 +247,9 @@ CORRECTIVE ACTION SLA:
       )}
 
       {/* ── 5-Metric Command Center Strip ── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* Total Reports */}
-        <div className="rounded-xl border bg-card p-5 shadow-sm relative overflow-hidden">
+        <div className="rounded-xl border bg-card p-4 sm:p-5 shadow-sm relative overflow-hidden">
           <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Total Observations
           </div>
@@ -368,7 +368,7 @@ CORRECTIVE ACTION SLA:
         </div>
 
         {data.trendData.length > 0 ? (
-          <div className="h-64 w-full">
+          <div className="h-64 w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data.trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>

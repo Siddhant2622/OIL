@@ -32,43 +32,43 @@ export default async function LandingPage({
     <div className="min-h-screen bg-slate-950 text-white">
       {/* ─── Nav ────────────────────────────────────────────────────── */}
       <nav className="fixed top-0 z-50 w-full border-b border-white/5 bg-slate-950/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 shadow-md shadow-blue-600/30">
-              <Shield className="h-5 w-5 text-white" />
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 shadow-md shadow-blue-600/30">
+              <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
             </div>
-            <div className="flex flex-col">
-              <span className="text-base font-bold tracking-tight text-white leading-none">
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm sm:text-base font-bold tracking-tight text-white leading-none truncate">
                 SIF Sentinel
               </span>
-              <span className="text-[10px] text-slate-400 font-mono tracking-wider">
+              <span className="text-[9px] sm:text-[10px] text-slate-400 font-mono tracking-wider hidden sm:inline">
                 INDUSTRIAL SAFETY INTELLIGENCE
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <Link
               href="/about/architecture"
-              className="hidden sm:inline-flex text-xs font-semibold text-slate-300 hover:text-white px-3 py-1.5 transition"
+              className="hidden md:inline-flex text-xs font-semibold text-slate-300 hover:text-white px-2.5 py-1.5 transition"
             >
               Architecture
             </Link>
             <Link
               href="/demo"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/20 transition"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/20 transition"
             >
               <Play className="h-3 w-3 fill-current" />
-              Judge Demo
+              <span className="hidden xs:inline">Judge </span>Demo
             </Link>
             <Link
               href="/login"
-              className="rounded-lg border border-white/10 px-3.5 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
+              className="rounded-lg border border-white/10 px-2.5 sm:px-3.5 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
             >
               Sign in
             </Link>
             <Link
               href="/register-company"
-              className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 shadow-sm"
+              className="hidden sm:inline-flex rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 shadow-sm"
             >
               Register Company
             </Link>
@@ -77,16 +77,16 @@ export default async function LandingPage({
       </nav>
 
       {/* ─── Hero ───────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden pt-32 pb-20">
+      <section className="relative overflow-hidden pt-28 sm:pt-32 pb-16 sm:pb-20">
         {/* Background glow */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-1/2 top-0 -translate-x-1/2 h-[550px] w-[850px] rounded-full bg-blue-600/10 blur-3xl" />
-          <div className="absolute left-1/3 top-36 h-[250px] w-[350px] rounded-full bg-red-600/5 blur-3xl" />
+          <div className="absolute left-1/2 top-0 -translate-x-1/2 h-[450px] sm:h-[550px] w-[90vw] sm:w-[850px] rounded-full bg-blue-600/10 blur-3xl" />
+          <div className="absolute left-1/3 top-36 h-[200px] sm:h-[250px] w-[300px] sm:w-[350px] rounded-full bg-red-600/5 blur-3xl" />
         </div>
 
-        <div className="relative mx-auto max-w-5xl px-6 text-center">
+        <div className="relative mx-auto max-w-5xl px-4 sm:px-6 text-center">
           {error && (
-            <div className="mb-6 mx-auto max-w-xl rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-300 text-left flex items-start gap-3">
+            <div className="mb-6 mx-auto max-w-xl rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 sm:p-4 text-xs text-amber-300 text-left flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-amber-200">Google Sign-in Session Expired</p>
@@ -102,27 +102,27 @@ export default async function LandingPage({
             </div>
           )}
 
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold text-amber-400">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            <span>Problem Statement SIH26165 — Oil India Limited (OIL)</span>
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 sm:px-4 py-1.5 text-xs font-semibold text-amber-400 max-w-[95vw] truncate">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">SIH26165 — Oil India Limited (OIL)</span>
           </div>
 
-          <h1 className="mb-6 text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl text-white">
+          <h1 className="mb-6 text-3xl sm:text-5xl lg:text-6xl font-black leading-tight tracking-tight text-white">
             Detect SIF Precursors Before They Become{" "}
             <span className="bg-gradient-to-r from-red-500 via-orange-400 to-amber-400 bg-clip-text text-transparent">
               Serious Incidents
             </span>
           </h1>
 
-          <p className="mx-auto mb-8 max-w-3xl text-base sm:text-lg text-slate-300 leading-relaxed font-normal">
+          <p className="mx-auto mb-8 max-w-3xl text-sm sm:text-lg text-slate-300 leading-relaxed font-normal">
             AI-powered analysis of unsafe acts, unsafe conditions, near misses and incident reports,
             with explainable evidence, Life-Saving Rule mapping, and recurring precursor intelligence.
           </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 w-full max-w-md sm:max-w-none mx-auto">
             <Link
               href="/demo"
-              className="group flex items-center gap-2 rounded-xl bg-red-600 px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-red-900/40 transition hover:bg-red-500 hover:shadow-red-800/60"
+              className="group flex items-center justify-center gap-2 rounded-xl bg-red-600 px-6 sm:px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-red-900/40 transition hover:bg-red-500 hover:shadow-red-800/60"
             >
               <Play className="h-4 w-4 fill-current" />
               Launch 3-Min Judge Demo
@@ -130,13 +130,13 @@ export default async function LandingPage({
             </Link>
             <Link
               href="/register-company"
-              className="flex items-center gap-2 rounded-xl bg-blue-600 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/40 transition hover:bg-blue-500"
+              className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 sm:px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/40 transition hover:bg-blue-500"
             >
               Register Company
             </Link>
             <Link
               href="/about/architecture"
-              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 sm:px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               System Architecture
             </Link>

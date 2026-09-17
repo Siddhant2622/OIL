@@ -367,8 +367,8 @@ export function EvaluationClient({ liveStats }: { liveStats: LiveReviewStat }) {
       {metrics && (
         <>
       {/* 2. Dynamically Calculated Benchmark Metrics Cards (Zero Invented Numbers) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="rounded-xl border bg-card p-5 shadow-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="rounded-xl border bg-card p-4 sm:p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               SIF Recall

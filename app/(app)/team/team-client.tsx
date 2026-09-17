@@ -106,11 +106,11 @@ export function TeamHierarchyClient({ profiles, sites, currentUserRole }: Props)
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {canInvite && (
             <button
               onClick={() => openInviteFor(null)}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:opacity-90 shadow-sm"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:opacity-90 shadow-sm w-full sm:w-auto"
               id="add-team-member-btn"
             >
               <UserPlus className="h-4 w-4" />
@@ -227,9 +227,9 @@ function HierarchyNode({
       : "bg-muted text-muted-foreground border-border";
 
   return (
-    <div className={`space-y-2 ${depth > 0 ? "ml-6 sm:ml-10 border-l-2 border-border/80 pl-4" : ""}`}>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 shadow-xs transition-all hover:border-primary/40">
-        <div className="flex items-center gap-3 min-w-0">
+    <div className={`space-y-2 ${depth > 0 ? "ml-2 sm:ml-6 md:ml-8 border-l-2 border-border/80 pl-2 sm:pl-4" : ""}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3 sm:p-4 shadow-xs transition-all hover:border-primary/40">
+        <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
           {hasSubordinates ? (
             <button
               onClick={() => onToggleCollapse(profile.id)}
