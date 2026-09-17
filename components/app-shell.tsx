@@ -23,6 +23,7 @@ import {
   Zap,
   FlaskConical,
   Play,
+  MessageSquare,
 } from "lucide-react";
 import { cn, roleLabels } from "@/lib/utils";
 import type { ProfileRow, UserRole } from "@/types/database";
@@ -95,6 +96,13 @@ const NAV_ITEMS: NavItem[] = [
     href: "/demo",
     label: "Judge Demo Mode",
     icon: Play,
+    roles: ["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD", "SUPERVISOR", "EMPLOYEE"],
+  },
+  {
+    href: "/whatsapp",
+    label: "WhatsApp Bot",
+    icon: MessageSquare,
+    badge: "LIVE",
     roles: ["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD", "SUPERVISOR", "EMPLOYEE"],
   },
   {
