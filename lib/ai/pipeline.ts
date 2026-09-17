@@ -126,6 +126,19 @@ export async function runAnalysisPipeline(
     // ── 7. Notify on sensitive / CRITICAL / HIGH SIF / immediate action ───────
     if (isSensitive) {
       await notifySensitive(admin, report, reporter, result);
+    } else if (reporter?.id) {
+      try {
+        await admin.from("notifications").insert({
+          org_id: report.org_id,
+          user_id: reporter.id,
+          type: "ANALYSIS_COMPLETED",
+          title: `Analysis Completed: ${report.report_code}`,
+          body: `AI evaluated your safety report. Risk band: ${result.risk_band}. Hazard: ${result.hazard || "None flagged"}.`,
+          link: `/reports/${report.id}`,
+        });
+      } catch (notifErr: any) {
+        console.warn("[pipeline] Reporter completion notification failed:", notifErr?.message);
+      }
     }
 
     // ── 8. Embed for clustering (fire-and-forget) ────────────────────────────

@@ -195,73 +195,96 @@ export async function analyseReport(
   }
 ): Promise<AnalysisOutput> {
   const client = getClient();
-  const model = "gemini-2.5-flash";
+  const candidateModels = [
+    process.env.GEMINI_MODEL,
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+  ].filter(Boolean) as string[];
+
+  // Deduplicate candidate models
+  const modelsToTry = Array.from(new Set(candidateModels));
 
   // Build the user prompt
   const userPrompt = buildPrompt(description, context);
 
   let lastError: unknown;
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const start = Date.now();
+  for (const model of modelsToTry) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const start = Date.now();
 
-    try {
-      const response = await client.models.generateContent({
-        model,
-        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: 0.1,
-          responseMimeType: "application/json",
-          responseSchema: RESPONSE_SCHEMA,
-        },
-      });
+      try {
+        const response = await client.models.generateContent({
+          model,
+          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+          config: {
+            systemInstruction: SYSTEM_INSTRUCTION,
+            temperature: 0.1,
+            responseMimeType: "application/json",
+            responseSchema: RESPONSE_SCHEMA,
+          },
+        });
 
-      const latency_ms = Date.now() - start;
-      // In @google/genai SDK, text is a property getter, not a method
-      const rawText = response.text as unknown as string | undefined;
-      const text = typeof rawText === "function"
-        ? (rawText as unknown as () => string)()
-        : (rawText ?? "");
+        const latency_ms = Date.now() - start;
+        // In @google/genai SDK, text is a property getter, not a method
+        const rawText = response.text as unknown as string | undefined;
+        const text =
+          typeof rawText === "function"
+            ? (rawText as unknown as () => string)()
+            : (rawText ?? "");
 
-      if (!text) {
-        throw new Error("Empty response from Gemini");
+        if (!text) {
+          throw new Error("Empty response from Gemini");
+        }
+
+        const result = JSON.parse(text) as GeminiAnalysisResult;
+
+        return {
+          result,
+          latency_ms,
+          raw_response: { text, usage: response.usageMetadata },
+          model,
+        };
+      } catch (err: unknown) {
+        lastError = err;
+        const errMsg = err instanceof Error ? err.message : String(err);
+
+        // If the model itself is not found or unsupported (e.g. 404), break to try next model immediately
+        if (
+          errMsg.includes("404") ||
+          errMsg.includes("not found") ||
+          errMsg.includes("not supported")
+        ) {
+          console.warn(
+            `[gemini] Model ${model} not available (${errMsg}). Falling back to next candidate model...`
+          );
+          break;
+        }
+
+        // Check for retryable status codes
+        const isRetryable =
+          errMsg.includes("429") ||
+          errMsg.includes("500") ||
+          errMsg.includes("503") ||
+          errMsg.includes("RESOURCE_EXHAUSTED");
+
+        if (!isRetryable || attempt === 3) {
+          break;
+        }
+
+        // Exponential backoff: 1s, 2s, 4s
+        const backoff = Math.pow(2, attempt - 1) * 1000;
+        console.warn(
+          `[gemini] Attempt ${attempt} failed with ${model} (${errMsg}). Retrying in ${backoff}ms…`
+        );
+        await sleep(backoff);
       }
-
-      const result = JSON.parse(text) as GeminiAnalysisResult;
-
-      return {
-        result,
-        latency_ms,
-        raw_response: { text, usage: response.usageMetadata },
-        model,
-      };
-    } catch (err: unknown) {
-      lastError = err;
-
-      // Check for retryable status codes
-      const isRetryable =
-        err instanceof Error &&
-        (err.message.includes("429") ||
-          err.message.includes("500") ||
-          err.message.includes("503") ||
-          err.message.includes("RESOURCE_EXHAUSTED"));
-
-      if (!isRetryable || attempt === 3) {
-        break;
-      }
-
-      // Exponential backoff: 1s, 2s, 4s
-      const backoff = Math.pow(2, attempt - 1) * 1000;
-      console.warn(
-        `[gemini] Attempt ${attempt} failed (${err instanceof Error ? err.message : "unknown"}). Retrying in ${backoff}ms…`
-      );
-      await sleep(backoff);
     }
   }
 
   throw new Error(
-    `Gemini analysis failed after 3 attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+    `Gemini analysis failed: ${lastError instanceof Error ? lastError.message : String(lastError)}`
   );
 }
 
@@ -305,6 +328,9 @@ export async function embedDescription(text: string): Promise<number[]> {
   const response = await client.models.embedContent({
     model: "gemini-embedding-001",
     contents: [{ role: "user", parts: [{ text }] }],
+    config: {
+      outputDimensionality: 768,
+    },
   });
 
   const embedding = response.embeddings?.[0]?.values;
