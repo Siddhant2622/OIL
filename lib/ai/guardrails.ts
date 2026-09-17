@@ -123,9 +123,11 @@ export function applyGuardrails(
     });
   }
 
-  // ── Guardrail 5: Energised equipment / live line without LOTO ─────────────
+  // ── Guardrail 5: Energised equipment / live line without LOTO ─────
+  // IMPORTANT: negative lookbehind ensures "de-energized"/"de-energised"
+  // (safe states) do NOT trigger this guardrail.
   const energisedPattern =
-    /live\s+line|energised|energized|live\s+wire|live\s+circuit|loto\s+not|loto\s+bypass|no\s+loto|isolation\s+not|not\s+isolated|without\s+isolation/i;
+    /live\s+line|(?<!de-)energis[e]?d|(?<!de-)energiz[e]?d|live\s+wire|live\s+circuit|loto\s+not|loto\s+bypass|no\s+loto|isolation\s+not|not\s+isolated|without\s+isolation/i;
 
   if (energisedPattern.test(desc)) {
     const orig = result.risk_band;
@@ -157,9 +159,13 @@ export function applyGuardrails(
     });
   }
 
-  // ── Guardrail 7: Pressurised line without depressurisation ────────────────
+  // ── Guardrail 7: Pressurised line without depressurisation ────────────
+  // NOTE: "valve\s+opened" was intentionally removed because it is too broad
+  // and would fire on any legitimate valve operation. We require either an
+  // explicit mention of a pressurised/live-pressure context OR a missing
+  // depressurisation step before the event.
   const pressurePattern =
-    /pressurised\s+line|pressurized\s+line|pressure\s+line|manifold\s+opened|valve\s+opened|without\s+(de)?pressuri[sz]ation|not\s+(de)?pressuri[sz]ed|live\s+pressure/i;
+    /pressurised\s+line|pressurized\s+line|pressure\s+line|manifold\s+opened\s+(under|while|at|with)\s+(pressure|live|full|\d+\s*bar)|without\s+(de)?pressuri[sz]ation|not\s+(de)?pressuri[sz]ed|live\s+pressure|under\s+(\d+\s*bar|full\s+pressure|line\s+pressure)/i;
 
   if (pressurePattern.test(desc)) {
     const orig = result.risk_band;

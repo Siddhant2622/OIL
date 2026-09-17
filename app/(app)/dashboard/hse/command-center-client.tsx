@@ -44,6 +44,8 @@ export interface CommandCenterData {
   periodDeltaReports: number | null;
   /** Percentage change in SIF count vs previous period. null means no historical data. */
   periodDeltaSif: number | null;
+  /** Human-readable label for the period window, e.g. "last 30d vs previous 30d" */
+  periodLabel: string;
   trendData: { period: string; total: number; sif: number }[];
   topSites: { name: string; count: number; pct: number; sifCount: number }[];
   topActivities: { name: string; count: number; pct: number; sifCount: number }[];
@@ -256,11 +258,11 @@ CORRECTIVE ACTION SLA:
           </div>
           <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold">
             {data.periodDeltaReports === null ? (
-              <span className="text-muted-foreground">— no prior period data</span>
+              <span className="text-muted-foreground">— {data.periodLabel}</span>
             ) : data.periodDeltaReports >= 0 ? (
-              <><ArrowUpRight className="h-3 w-3 text-emerald-600" /><span className="text-emerald-600">+{data.periodDeltaReports.toFixed(1)}% vs last period</span></>
+              <><ArrowUpRight className="h-3 w-3 text-emerald-600" /><span className="text-emerald-600">+{data.periodDeltaReports.toFixed(1)}% ({data.periodLabel})</span></>
             ) : (
-              <><ArrowDownRight className="h-3 w-3 text-blue-600" /><span className="text-blue-600">{data.periodDeltaReports.toFixed(1)}% vs last period</span></>
+              <><ArrowDownRight className="h-3 w-3 text-blue-600" /><span className="text-blue-600">{data.periodDeltaReports.toFixed(1)}% ({data.periodLabel})</span></>
             )}
           </div>
           <div className="mt-1 text-[10px] text-muted-foreground">UA, UC, Near-Miss &amp; Incidents</div>
@@ -281,11 +283,11 @@ CORRECTIVE ACTION SLA:
           </div>
           <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold">
             {data.periodDeltaSif === null ? (
-              <span className="text-muted-foreground">— no prior period data</span>
+              <span className="text-muted-foreground">— {data.periodLabel}</span>
             ) : data.periodDeltaSif >= 0 ? (
-              <><ArrowUpRight className="h-3 w-3 text-red-600" /><span className="text-red-600">+{data.periodDeltaSif.toFixed(1)}% SIF vs last period</span></>
+              <><ArrowUpRight className="h-3 w-3 text-red-600" /><span className="text-red-600">+{data.periodDeltaSif.toFixed(1)}% SIF ({data.periodLabel})</span></>
             ) : (
-              <><ArrowDownRight className="h-3 w-3 text-emerald-600" /><span className="text-emerald-600">{data.periodDeltaSif.toFixed(1)}% SIF vs last period</span></>
+              <><ArrowDownRight className="h-3 w-3 text-emerald-600" /><span className="text-emerald-600">{data.periodDeltaSif.toFixed(1)}% SIF ({data.periodLabel})</span></>
             )}
           </div>
           <div className="mt-1 text-[10px] text-muted-foreground">Carrying fatal or life-altering energy</div>

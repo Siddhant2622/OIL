@@ -50,9 +50,10 @@ export default async function HseDashboard() {
     .eq("org_id", org_id)
     .eq("risk_band", "HIGH");
 
-  const { count: reviewedCount } = await admin
+  // "Reviewed by HSE" = distinct SIF report_ids that have at least one review row
+  const { data: reviewRows } = await admin
     .from("reviews")
-    .select("*", { count: "exact", head: true })
+    .select("report_id")
     .eq("org_id", org_id);
 
   // 2. Live CAPA actions
@@ -66,24 +67,30 @@ export default async function HseDashboard() {
   const overdueActions = actions?.filter((a) => a.status === "OVERDUE" || (a.due_date && new Date(a.due_date) < new Date() && a.status !== "COMPLETED")).length ?? 0;
   const verifiedActions = actions?.filter((a) => a.status === "COMPLETED").length ?? 0;
 
-  // 3. Live analyses for barrier & LSR breakdown
+  // 3. Live analyses — include report_id so we can build site SIF density correctly
   const { data: analyses } = await admin
     .from("ai_analyses")
-    .select("hazard, activity, barriers, lsr_tags, risk_band, sif_potential, created_at")
+    .select("report_id, hazard, activity, barriers, lsr_tags, risk_band, sif_potential, created_at")
     .eq("org_id", org_id);
 
-  // 4. Live reports for site breakdown
+  // 4. Live reports for site breakdown — include id so we can join with analyses
   const { data: reports } = await admin
     .from("reports")
-    .select("location_text, created_at")
+    .select("id, location_text, created_at")
     .eq("org_id", org_id);
 
-  // Aggregate live site distribution
+  // Build lookup: report_id → sif_potential (from analyses)
+  const sifReportIds = new Set<string>(
+    (analyses ?? []).filter((a) => a.sif_potential).map((a) => a.report_id as string)
+  );
+
+  // Aggregate live site distribution — sif now correctly joined via report_id
   const siteCounts: Record<string, { total: number; sif: number }> = {};
   (reports ?? []).forEach((r) => {
     const loc = r.location_text || "Unspecified Area";
     if (!siteCounts[loc]) siteCounts[loc] = { total: 0, sif: 0 };
     siteCounts[loc].total++;
+    if (sifReportIds.has(r.id)) siteCounts[loc].sif++;
   });
 
   // Aggregate live activity, barrier, and LSR distributions
@@ -184,24 +191,27 @@ export default async function HseDashboard() {
       )
     : null;
 
-  // 2b. Compute period-over-period deltas from actual DB rows
-  //     Split all rows into two equal halves by timestamp to compare "current" vs "previous"
-  function calcDelta(
+  // ── Compute period deltas using explicit 30d windows ──────────────────────
+  // "last 30d" = past 30 days; "previous 30d" = 30-60 days ago
+  // This is honest: the label shown in UI matches exactly what is computed.
+  function calcDelta30d(
     rows: { created_at: string }[]
-  ): number | null {
-    if (rows.length < 2) return null;
-    const sorted = [...rows].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    );
-    const mid = new Date(
-      (new Date(sorted[0].created_at).getTime() +
-        new Date(sorted[sorted.length - 1].created_at).getTime()) /
-        2
-    );
-    const prev = sorted.filter((r) => new Date(r.created_at) < mid).length;
-    const curr = sorted.filter((r) => new Date(r.created_at) >= mid).length;
-    if (prev === 0) return null;
-    return parseFloat((((curr - prev) / prev) * 100).toFixed(1));
+  ): { delta: number | null; periodLabel: string } {
+    const now = Date.now();
+    const MS_30D = 30 * 24 * 60 * 60 * 1000;
+    const curr = rows.filter(
+      (r) => new Date(r.created_at).getTime() >= now - MS_30D
+    ).length;
+    const prev = rows.filter(
+      (r) =>
+        new Date(r.created_at).getTime() >= now - 2 * MS_30D &&
+        new Date(r.created_at).getTime() < now - MS_30D
+    ).length;
+    if (prev === 0) return { delta: null, periodLabel: "last 30d vs previous 30d" };
+    return {
+      delta: parseFloat((((curr - prev) / prev) * 100).toFixed(1)),
+      periodLabel: "last 30d vs previous 30d",
+    };
   }
 
   const allReportRows = (reports ?? []).map((r) => ({ created_at: r.created_at }));
@@ -209,8 +219,12 @@ export default async function HseDashboard() {
     .filter((a) => a.sif_potential)
     .map((a) => ({ created_at: a.created_at }));
 
-  const periodDeltaReports = calcDelta(allReportRows);
-  const periodDeltaSif = calcDelta(allSifRows);
+  const { delta: periodDeltaReports, periodLabel } = calcDelta30d(allReportRows);
+  const { delta: periodDeltaSif } = calcDelta30d(allSifRows);
+
+  // reviewedCount = distinct SIF report_ids that have at least one review
+  const reviewedReportIds = new Set((reviewRows ?? []).map((r) => r.report_id as string));
+  const reviewedSifCount = [...reviewedReportIds].filter((id) => sifReportIds.has(id)).length;
 
   // ── STRICT LIVE DATA (Zero fabricated numbers) ──
   const liveData: CommandCenterData = {
@@ -219,10 +233,11 @@ export default async function HseDashboard() {
     sifCount: safeSifCount,
     highCount: highCount ?? 0,
     criticalCount: criticalCount ?? 0,
-    reviewedCount: reviewedCount ?? 0,
-    reviewedPct: safeSifCount > 0 ? Math.min(100, Math.round(((reviewedCount ?? 0) / safeSifCount) * 100)) : 0,
+    reviewedCount: reviewedSifCount,
+    reviewedPct: safeSifCount > 0 ? Math.min(100, Math.round((reviewedSifCount / safeSifCount) * 100)) : 0,
     periodDeltaReports,
     periodDeltaSif,
+    periodLabel,
     trendData: liveTrendData,
     topSites: liveTopSites,
     topActivities: liveTopActivities,
@@ -251,6 +266,7 @@ export default async function HseDashboard() {
     // Demo model deltas are labelled as illustrative, not computed from live DB
     periodDeltaReports: 12.4,
     periodDeltaSif: 18.0,
+    periodLabel: "illustrative demo period",
     trendData: [
       { period: "Week 1", total: 110, sif: 18 },
       { period: "Week 2", total: 125, sif: 22 },

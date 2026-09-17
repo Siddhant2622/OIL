@@ -36,7 +36,9 @@ export default async function PrecursorsPage() {
     .map((r) => {
       const a = Array.isArray(r.ai_analyses) ? r.ai_analyses[0] : (r.ai_analyses as Record<string, unknown>);
       const barriers = a?.barriers as { name: string; status: string }[] | null;
-      const primaryBarrier = Array.isArray(barriers) && barriers.length > 0 ? barriers[0] : { name: "LOTO / Isolation", status: "MISSING" };
+      const primaryBarrier = Array.isArray(barriers) && barriers.length > 0
+        ? barriers[0]
+        : { name: "Unknown", status: "UNKNOWN" };
       const siteName = (r.sites as unknown as { name: string } | null)?.name || r.location_text || "Unspecified Site";
 
       return {
@@ -44,11 +46,11 @@ export default async function PrecursorsPage() {
         report_code: r.report_code,
         report_type: r.report_type,
         site: siteName,
-        activity: (a?.activity as string) || "Maintenance & Inspection",
+        activity: (a?.activity as string) || "Unknown",
         barrier: primaryBarrier.name,
         barrier_status: primaryBarrier.status,
-        energy: (a?.energy_source as string) || "Pressure",
-        risk_band: (a?.risk_band as "CRITICAL" | "HIGH" | "MEDIUM" | "LOW") || "HIGH",
+        energy: (a?.energy_source as string) || "Unknown",
+        risk_band: (a?.risk_band as "CRITICAL" | "HIGH" | "MEDIUM" | "LOW") || "MEDIUM",
         sif_potential: Boolean(a?.sif_potential),
         description: r.description,
         occurred_at: r.occurred_at,

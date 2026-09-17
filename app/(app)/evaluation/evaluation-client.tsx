@@ -312,28 +312,48 @@ export function EvaluationClient({ liveStats }: { liveStats: LiveReviewStat }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCase, setActiveCase] = useState<BenchmarkCase>(BENCHMARK_SUITE[0]);
   const [isRunningEval, setIsRunningEval] = useState(false);
-  const [evalProgress, setEvalProgress] = useState(100);
+  const [evalProgress, setEvalProgress] = useState(0);
+  const [evalError, setEvalError] = useState<string | null>(null);
+  // Map of case id -> live Gemini inference result
+  const [inferredResults, setInferredResults] = useState<Map<string, {
+    aiVerdictSIF: boolean;
+    aiPredictedLSR: string | null;
+    riskBand: string;
+    guardrailsTriggered: string[];
+    confidence: number;
+    latency_ms: number;
+    error?: string;
+  }> | null>(null);
+  const evalHasRun = inferredResults !== null;
 
-  // Dynamically calculate metrics from the actual stored benchmark dataset (Problem 2)
+  // Compute metrics — uses live inference results if available, else static fixture verdicts
   const metrics = useMemo(() => {
     const total = BENCHMARK_SUITE.length;
-    const tp = BENCHMARK_SUITE.filter((c) => c.groundTruthSIF && c.aiVerdictSIF).length;
-    const fp = BENCHMARK_SUITE.filter((c) => !c.groundTruthSIF && c.aiVerdictSIF).length;
-    const fn = BENCHMARK_SUITE.filter((c) => c.groundTruthSIF && !c.aiVerdictSIF).length;
-    const tn = BENCHMARK_SUITE.filter((c) => !c.groundTruthSIF && !c.aiVerdictSIF).length;
 
-    const recall = ((tp / Math.max(1, tp + fn)) * 100);
-    const precision = ((tp / Math.max(1, tp + fp)) * 100);
-    const f1 = (2 * (precision * recall)) / Math.max(1, (precision + recall));
+    const getVerdictSIF = (c: BenchmarkCase): boolean =>
+      inferredResults?.get(c.id)?.aiVerdictSIF ?? c.aiVerdictSIF;
+    const getPredictedLSR = (c: BenchmarkCase): string | null =>
+      inferredResults?.get(c.id)?.aiPredictedLSR ?? c.aiPredictedLSR ?? null;
+
+    const tp = BENCHMARK_SUITE.filter((c) => c.groundTruthSIF && getVerdictSIF(c)).length;
+    const fp = BENCHMARK_SUITE.filter((c) => !c.groundTruthSIF && getVerdictSIF(c)).length;
+    const fn = BENCHMARK_SUITE.filter((c) => c.groundTruthSIF && !getVerdictSIF(c)).length;
+    const tn = BENCHMARK_SUITE.filter((c) => !c.groundTruthSIF && !getVerdictSIF(c)).length;
+
+    const recall = (tp / Math.max(1, tp + fn)) * 100;
+    const precision = (tp / Math.max(1, tp + fp)) * 100;
+    const f1 = (2 * (precision * recall)) / Math.max(1, precision + recall);
 
     const sifCases = BENCHMARK_SUITE.filter((c) => c.groundTruthSIF);
-    const lsrCorrect = sifCases.filter((c) => c.groundTruthLSR && c.groundTruthLSR === c.aiPredictedLSR).length;
-    const lsrAccuracy = ((lsrCorrect / Math.max(1, sifCases.length)) * 100);
+    const lsrCorrect = sifCases.filter(
+      (c) => c.groundTruthLSR && c.groundTruthLSR === getPredictedLSR(c)
+    ).length;
+    const lsrAccuracy = (lsrCorrect / Math.max(1, sifCases.length)) * 100;
 
     const validEvidence = BENCHMARK_SUITE.filter((c) =>
       c.description.toLowerCase().includes(c.exactEvidence.toLowerCase())
     ).length;
-    const evidenceValidity = ((validEvidence / total) * 100);
+    const evidenceValidity = (validEvidence / total) * 100;
 
     return {
       total,
@@ -349,22 +369,78 @@ export function EvaluationClient({ liveStats }: { liveStats: LiveReviewStat }) {
       sifTotal: tp + fn,
       nonSifTotal: fp + tn,
     };
-  }, []);
+  }, [inferredResults]);
 
-  function handleRunBenchmark() {
+  async function handleRunBenchmark() {
     setIsRunningEval(true);
     setEvalProgress(0);
+    setEvalError(null);
+    const newResults = new Map<string, {
+      aiVerdictSIF: boolean;
+      aiPredictedLSR: string | null;
+      riskBand: string;
+      guardrailsTriggered: string[];
+      confidence: number;
+      latency_ms: number;
+      error?: string;
+    }>();
 
-    const interval = setInterval(() => {
-      setEvalProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsRunningEval(false);
-          return 100;
-        }
-        return prev + 25;
+    try {
+      const response = await fetch("/api/benchmark", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cases: BENCHMARK_SUITE.map((c) => ({
+            id: c.id,
+            description: c.description,
+            category: c.category,
+          })),
+        }),
       });
-    }, 200);
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? `HTTP ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let completed = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const result = JSON.parse(line) as {
+              id: string;
+              aiVerdictSIF: boolean;
+              aiPredictedLSR: string | null;
+              riskBand: string;
+              guardrailsTriggered: string[];
+              confidence: number;
+              latency_ms: number;
+              error?: string;
+            };
+            newResults.set(result.id, result);
+            completed++;
+            setEvalProgress(Math.round((completed / BENCHMARK_SUITE.length) * 100));
+          } catch { /* malformed line, skip */ }
+        }
+      }
+
+      setInferredResults(new Map(newResults));
+    } catch (err: unknown) {
+      setEvalError(err instanceof Error ? err.message : "Evaluation failed");
+    } finally {
+      setIsRunningEval(false);
+    }
   }
 
   const categories = ["ALL", "Confined Space", "Energy Isolation", "Line of Fire", "Working at Height", "Hot Work", "Driving", "Routine Non-SIF"];
@@ -380,7 +456,6 @@ export function EvaluationClient({ liveStats }: { liveStats: LiveReviewStat }) {
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-10">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b pb-4">
         <div>
           <div className="flex items-center gap-2">
@@ -388,34 +463,44 @@ export function EvaluationClient({ liveStats }: { liveStats: LiveReviewStat }) {
               BENCHMARK &amp; EVALUATION LAB
             </span>
             <span className="rounded bg-muted px-2.5 py-0.5 text-xs font-mono text-muted-foreground border">
-              Calculated dynamically over {metrics.total} labeled cases
+              {evalHasRun
+                ? `Live inference results — ${metrics.total} cases`
+                : `Fixture verdicts — run pipeline to get live measurements`}
             </span>
           </div>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-foreground">
             SIF Sentinel Empirical Evaluation &amp; Accuracy Lab
           </h1>
           <p className="mt-1 text-sm text-muted-foreground max-w-3xl leading-relaxed">
-            Transparent empirical measurement of SIF recall, precision, confusion matrix, and IOGP Life-Saving Rule accuracy calculated directly from the ground-truth test suite.
+            Transparent empirical measurement of SIF recall, precision, confusion matrix, and IOGP Life-Saving Rule accuracy.
+            {evalHasRun
+              ? " Measured on 20 synthetic/domain-inspired scenarios using the current deployed Gemini + guardrails pipeline."
+              : " Click \"Run Live Pipeline Evaluation\" to execute the current Gemini pipeline against all 20 scenarios."}
           </p>
         </div>
 
-        <button
-          onClick={handleRunBenchmark}
-          disabled={isRunningEval}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow transition hover:bg-primary/90 disabled:opacity-50 shrink-0"
-        >
-          {isRunningEval ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Evaluating {evalProgress}%...
-            </>
-          ) : (
-            <>
-              <Play className="h-3.5 w-3.5 fill-current" />
-              Re-Calculate Benchmark
-            </>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <button
+            onClick={handleRunBenchmark}
+            disabled={isRunningEval}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow transition hover:bg-primary/90 disabled:opacity-50"
+          >
+            {isRunningEval ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Evaluating {evalProgress}% ({Math.round((evalProgress / 100) * metrics.total)}/{metrics.total} cases)...
+              </>
+            ) : (
+              <>
+                <Play className="h-3.5 w-3.5 fill-current" />
+                {evalHasRun ? "Re-Run Live Pipeline" : "Run Live Pipeline Evaluation"}
+              </>
+            )}
+          </button>
+          {evalError && (
+            <p className="text-xs text-red-600 font-medium">{evalError}</p>
           )}
-        </button>
+        </div>
       </div>
 
       {/* 1. Data Provenance Transparency Card */}
@@ -608,7 +693,7 @@ export function EvaluationClient({ liveStats }: { liveStats: LiveReviewStat }) {
           </div>
 
           <div className="mt-4 rounded-lg bg-muted/20 p-3 text-xs text-muted-foreground leading-relaxed">
-            <strong className="text-foreground">Zero Unchecked Failure:</strong> False negatives in production are eliminated because any case with hazardous energy and dismissive wording or confidence &lt; 0.65 is automatically escalated to the HSE review queue by Guardrails 3, 5, 7, 12, and 13.
+            <strong className="text-foreground">Guardrail Coverage:</strong> Deterministic guardrails escalate defined high-risk patterns (Guardrails 3, 5, 7, 12, 13) and low-confidence cases to reduce missed SIF precursors and increase human review coverage. Guardrails can only escalate — never downgrade — a Gemini verdict.
           </div>
         </div>
 

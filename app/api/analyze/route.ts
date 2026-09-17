@@ -49,6 +49,47 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Role-based report access enforcement (mirrors RLS visibility rules)
+  const role = profile.role as string;
+  if (role !== "ORG_ADMIN" && role !== "HSE_MANAGER") {
+    if (role === "EMPLOYEE") {
+      // Employees can only trigger analysis on their own submissions
+      if (report.submitted_by !== user.id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else if (role === "SUPERVISOR") {
+      // Supervisors can analyze reports by anyone in their subtree
+      // Walk the reporter's manager chain to verify supervisor is in it
+      const { data: reporterProfile } = await admin
+        .from("profiles")
+        .select("manager_id")
+        .eq("id", report.submitted_by)
+        .single();
+
+      let managerId = reporterProfile?.manager_id ?? null;
+      let authorized = managerId === user.id;
+      let depth = 0;
+
+      while (!authorized && managerId && depth < 10) {
+        const { data: mgr } = await admin
+          .from("profiles")
+          .select("manager_id, id")
+          .eq("id", managerId)
+          .single();
+        if (!mgr) break;
+        authorized = mgr.id === user.id;
+        managerId = mgr.manager_id ?? null;
+        depth++;
+      }
+
+      if (!authorized) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   // Check not already analyzed
   if (["ANALYZING", "ANALYZED"].includes(report.status)) {
     return NextResponse.json(
