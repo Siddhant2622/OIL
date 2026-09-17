@@ -20,6 +20,9 @@ import {
   Upload,
   Building2,
   Eye,
+  Zap,
+  FlaskConical,
+  Play,
 } from "lucide-react";
 import { cn, roleLabels } from "@/lib/utils";
 import type { ProfileRow, UserRole } from "@/types/database";
@@ -65,6 +68,12 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["ORG_ADMIN", "HSE_MANAGER"],
   },
   {
+    href: "/precursors",
+    label: "Precursor Intel",
+    icon: Zap,
+    roles: ["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD", "SUPERVISOR"],
+  },
+  {
     href: "/analytics",
     label: "Analytics",
     icon: BarChart3,
@@ -75,6 +84,18 @@ const NAV_ITEMS: NavItem[] = [
     label: "CAPA Actions",
     icon: CheckSquare,
     roles: ["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD", "SUPERVISOR"],
+  },
+  {
+    href: "/evaluation",
+    label: "Evaluation Lab",
+    icon: FlaskConical,
+    roles: ["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD"],
+  },
+  {
+    href: "/demo",
+    label: "Judge Demo Mode",
+    icon: Play,
+    roles: ["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD", "SUPERVISOR", "EMPLOYEE"],
   },
   {
     href: "/team",

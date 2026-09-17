@@ -11,6 +11,7 @@ import { analyseReport, embedDescription, PROMPT_VERSION } from "./gemini";
 import { applyGuardrails } from "./guardrails";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendSensitiveAlertEmail } from "@/lib/email";
+import { findSimilarHistoricalReports, formatSimilarCasesForPrompt } from "./similarity";
 import type { ReportRow, ProfileRow, RiskBand } from "@/types/database";
 
 export interface PipelineInput {
@@ -44,13 +45,15 @@ export async function runAnalysisPipeline(
     .eq("id", report.id);
 
   try {
-    // ── 2. Fetch historical context ──────────────────────────────────────────
-    const historicalSummary = await fetchHistoricalContext(
+    // ── 2. pgvector Semantic Retrieval ──────────────────────────────────────
+    const similarCases = await findSimilarHistoricalReports(
       admin,
       report.org_id,
-      report.location_text ?? undefined,
-      report.activity_text ?? undefined
+      report.description,
+      4,
+      report.id
     );
+    const historicalSummary = formatSimilarCasesForPrompt(similarCases);
 
     // ── 3. Call Gemini ───────────────────────────────────────────────────────
     const { result: geminiResult, latency_ms, raw_response, model } =
@@ -163,31 +166,6 @@ function determineStatus(
     return "IN_REVIEW";
   }
   return "ANALYZED";
-}
-
-async function fetchHistoricalContext(
-  admin: ReturnType<typeof createAdminClient>,
-  org_id: string,
-  location?: string,
-  activity?: string
-): Promise<string | undefined> {
-  // Fetch up to 5 similar recent reports from the same org
-  const { data: similar } = await admin
-    .from("reports")
-    .select("description, status, created_at")
-    .eq("org_id", org_id)
-    .eq("location_text", location ?? "")
-    .neq("status", "SUBMITTED")
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  if (!similar || similar.length === 0) return undefined;
-
-  const summaries = similar
-    .map((r, i) => `[${i + 1}] (${r.status}) ${r.description.slice(0, 200)}…`)
-    .join("\n");
-
-  return `${similar.length} similar recent reports at this location:\n${summaries}`;
 }
 
 async function notifySensitive(
