@@ -87,13 +87,15 @@ export async function GET(request: NextRequest) {
     .single();
 
   if (inv) {
-    // Create profile
+    // Create profile with full hierarchy context from invitation
     const { error: profileError } = await admin.from("profiles").insert({
       id: user.id,
       org_id: inv.org_id,
       email: userEmail,
+      full_name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
       avatar_url: user.user_metadata?.avatar_url ?? null,
       role: inv.role,
+      designation: (inv as any).designation ?? null,
       manager_id: inv.manager_id ?? null,
       site_id: inv.site_id ?? null,
       department: inv.department ?? null,

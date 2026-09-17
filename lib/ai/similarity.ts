@@ -58,29 +58,18 @@ export async function findSimilarHistoricalReports(
     let matchIds: { report_id: string; similarity: number }[] = [];
 
     if (!rpcError && Array.isArray(rpcMatches) && rpcMatches.length > 0) {
-      matchIds = rpcMatches.map((m: { report_id: string; similarity: number }) => ({
-        report_id: m.report_id,
-        similarity: m.similarity,
-      }));
-    } else {
-      // Fallback if vector table is sparsely populated: select other reports from org
-      const query = admin
-        .from("reports")
-        .select("id")
-        .eq("org_id", orgId)
-        .neq("status", "SUBMITTED");
-
-      if (excludeReportId) {
-        query.neq("id", excludeReportId);
-      }
-
-      const { data: recent } = await query.limit(limit);
-      if (recent) {
-        matchIds = recent.map((r, i) => ({
-          report_id: r.id,
-          similarity: 0.88 - i * 0.05, // realistic semantic match score
+      matchIds = rpcMatches
+        .filter((m: any) => typeof m.similarity === "number" && !isNaN(m.similarity))
+        .map((m: { report_id: string; similarity: number }) => ({
+          report_id: m.report_id,
+          similarity: Math.max(0, Math.min(1, m.similarity)),
         }));
+    } else {
+      if (rpcError) {
+        console.warn("[similarity] pgvector match_similar_reports RPC warning:", rpcError.message);
       }
+      // Never manufacture fake similarity scores. If no matches exist in pgvector, return empty.
+      return [];
     }
 
     if (!matchIds.length) return [];
