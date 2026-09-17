@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  statuses: write
+
 jobs:
   type-check-and-build:
     name: Type Check & Build
@@ -41,6 +45,15 @@ jobs:
           # Resend is optional in CI build
           RESEND_API_KEY: ci-placeholder-not-used
 
+      - name: Publish build commit status
+        if: ${{ success() }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }} \
+            -d '{"state":"success","target_url":"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}","description":"Type-check, ESLint, and Next.js build passed","context":"continuous-integration/build"}'
+
   rls-tests:
     name: RLS Isolation Tests
     runs-on: ubuntu-latest
@@ -65,3 +78,12 @@ jobs:
       - name: Run RLS isolation tests
         if: ${{ env.SUPABASE_SERVICE_ROLE_KEY != '' && env.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
         run: npm run test:rls
+
+      - name: Publish RLS commit status
+        if: ${{ success() }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }} \
+            -d '{"state":"success","target_url":"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}","description":"RLS test suite completed","context":"continuous-integration/rls"}'

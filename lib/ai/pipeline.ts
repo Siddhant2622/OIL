@@ -71,36 +71,36 @@ export async function runAnalysisPipeline(
     );
 
     // ── 5. Persist analysis ──────────────────────────────────────────────────
+    // In case of retry from ANALYSIS_FAILED, clean up any previous analysis row
+    await admin.from("ai_analyses").delete().eq("report_id", report.id);
+
     const { data: analysis, error: persistError } = await admin
       .from("ai_analyses")
-      .upsert(
-        {
-          org_id: report.org_id,
-          report_id: report.id,
-          model,
-          prompt_version: PROMPT_VERSION,
-          sif_potential: result.sif_potential,
-          sif_confidence: result.sif_confidence,
-          risk_band: result.risk_band as RiskBand,
-          energy_source: result.energy_source,
-          hazard: result.hazard,
-          activity: result.activity,
-          location_type: result.location_type,
-          equipment: result.equipment,
-          barriers: result.barriers,
-          lsr_tags: result.lsr_tags,
-          precursor_type: result.precursor_type,
-          evidence_spans: result.evidence_spans,
-          rationale: result.rationale,
-          recommended_actions: result.recommended_actions,
-          needs_human_review: result.needs_human_review,
-          review_reasons: result.review_reasons,
-          rule_overrides,
-          latency_ms,
-          raw_response: raw_response as Record<string, unknown>,
-        },
-        { onConflict: "report_id" }
-      )
+      .insert({
+        org_id: report.org_id,
+        report_id: report.id,
+        model,
+        prompt_version: PROMPT_VERSION,
+        sif_potential: result.sif_potential,
+        sif_confidence: result.sif_confidence,
+        risk_band: result.risk_band as RiskBand,
+        energy_source: result.energy_source,
+        hazard: result.hazard,
+        activity: result.activity,
+        location_type: result.location_type,
+        equipment: result.equipment,
+        barriers: result.barriers,
+        lsr_tags: result.lsr_tags,
+        precursor_type: result.precursor_type,
+        evidence_spans: result.evidence_spans,
+        rationale: result.rationale,
+        recommended_actions: result.recommended_actions,
+        needs_human_review: result.needs_human_review,
+        review_reasons: result.review_reasons,
+        rule_overrides,
+        latency_ms,
+        raw_response: raw_response as Record<string, unknown>,
+      })
       .select("id")
       .single();
 

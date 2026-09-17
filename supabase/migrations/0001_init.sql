@@ -171,7 +171,7 @@ create table ai_analyses (
   created_at           timestamptz not null default now()
 );
 
-create index on ai_analyses(report_id);
+create unique index on ai_analyses(report_id);
 create index on ai_analyses(org_id, risk_band);
 create index on ai_analyses(org_id, needs_human_review) where needs_human_review = true;
 

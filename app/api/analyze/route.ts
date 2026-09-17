@@ -91,18 +91,22 @@ export async function POST(request: NextRequest) {
   }
 
   // Atomically claim the report for analysis using Compare-And-Swap (CAS).
-  // Guards against concurrent simultaneous requests analyzing the same report.
+  // Strictly permits analysis ONLY if the report is in SUBMITTED or ANALYSIS_FAILED state.
+  // Finalized (CLOSED, CONFIRMED_*), active (IN_REVIEW, ACTIONS_OPEN), or already analyzing states are rejected.
   const { data: claimedReport, error: claimError } = await admin
     .from("reports")
     .update({ status: "ANALYZING" })
     .eq("id", report_id)
-    .not("status", "in", '("ANALYZING","ANALYZED")')
+    .in("status", ["SUBMITTED", "ANALYSIS_FAILED"])
     .select()
     .maybeSingle();
 
   if (claimError || !claimedReport) {
     return NextResponse.json(
-      { error: "Report is already being analyzed or has already been analyzed" },
+      {
+        error:
+          "Report cannot be analyzed in its current state (only SUBMITTED or ANALYSIS_FAILED reports can be analyzed)",
+      },
       { status: 409 }
     );
   }
