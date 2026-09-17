@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
   if (role !== "ORG_ADMIN" && role !== "HSE_MANAGER") {
     if (role === "EMPLOYEE") {
       // Employees can only trigger analysis on their own submissions
-      if (report.submitted_by !== user.id) {
+      if (report.reporter_id !== user.id) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     } else if (role === "SUPERVISOR") {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       const { data: reporterProfile } = await admin
         .from("profiles")
         .select("manager_id")
-        .eq("id", report.submitted_by)
+        .eq("id", report.reporter_id)
         .single();
 
       let managerId = reporterProfile?.manager_id ?? null;

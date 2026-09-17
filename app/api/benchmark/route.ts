@@ -1,15 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+ï»¿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { analyseReport } from "@/lib/ai/gemini";
 import { applyGuardrails } from "@/lib/ai/guardrails";
-
-export interface BenchmarkRunRequest {
-  cases: {
-    id: string;
-    description: string;
-    category: string;
-  }[];
-}
+import { BENCHMARK_SUITE } from "@/lib/ai/benchmark-suite";
 
 export interface BenchmarkCaseResult {
   id: string;
@@ -17,6 +11,7 @@ export interface BenchmarkCaseResult {
   aiPredictedLSR: string | null;
   riskBand: string;
   guardrailsTriggered: string[];
+  evidence_spans: string[];
   confidence: number;
   latency_ms: number;
   error?: string;
@@ -24,9 +19,15 @@ export interface BenchmarkCaseResult {
 
 /**
  * POST /api/benchmark
- * Runs the real Gemini + guardrails pipeline for each test case.
- * Server-only — GEMINI_API_KEY never leaves the server.
- * Returns streaming NDJSON: one JSON object per line, one per case.
+ * Runs the real Gemini + guardrails pipeline against the canonical 20-case suite.
+ *
+ * Security & Integrity constraints:
+ * 1. Server-only - GEMINI_API_KEY never leaves the server.
+ * 2. Role-restricted - Only ORG_ADMIN and HSE_MANAGER can trigger execution.
+ * 3. Proxy-abuse prevention - Client cannot supply arbitrary descriptions;
+ *    the server strictly loads and evaluates the canonical BENCHMARK_SUITE.
+ *
+ * Returns streaming NDJSON: one JSON object per line, one per benchmark case.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -38,22 +39,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = (await request.json()) as BenchmarkRunRequest;
-  const cases = body?.cases;
+  // Role authorization: restrict live benchmark execution to ORG_ADMIN and HSE_MANAGER
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
 
-  if (!Array.isArray(cases) || cases.length === 0) {
+  const role = profile?.role as string | undefined;
+  if (role !== "ORG_ADMIN" && role !== "HSE_MANAGER") {
     return NextResponse.json(
-      { error: "cases array required" },
-      { status: 400 }
+      {
+        error:
+          "Forbidden: Live benchmark execution is restricted to ORG_ADMIN and HSE_MANAGER roles.",
+      },
+      { status: 403 }
     );
   }
 
-  if (cases.length > 20) {
-    return NextResponse.json(
-      { error: "Maximum 20 benchmark cases per run" },
-      { status: 400 }
-    );
-  }
+  // Server strictly loads the canonical 20-case suite (client input is ignored to prevent proxy abuse)
+  const cases = BENCHMARK_SUITE;
 
   const encoder = new TextEncoder();
 
@@ -66,6 +72,7 @@ export async function POST(request: NextRequest) {
           aiPredictedLSR: null,
           riskBand: "LOW",
           guardrailsTriggered: [],
+          evidence_spans: [],
           confidence: 0,
           latency_ms: 0,
         };
@@ -89,6 +96,7 @@ export async function POST(request: NextRequest) {
           caseResult.riskBand = result.risk_band;
           caseResult.confidence = result.sif_confidence;
           caseResult.latency_ms = latency_ms;
+          caseResult.evidence_spans = result.evidence_spans || [];
           caseResult.guardrailsTriggered = rule_overrides
             .filter((r) => r.triggered)
             .map((r) => r.rule);

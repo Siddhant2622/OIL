@@ -124,12 +124,36 @@ export function applyGuardrails(
   }
 
   // ── Guardrail 5: Energised equipment / live line without LOTO ─────
-  // IMPORTANT: negative lookbehind ensures "de-energized"/"de-energised"
-  // (safe states) do NOT trigger this guardrail.
-  const energisedPattern =
-    /live\s+line|(?<!de-)energis[e]?d|(?<!de-)energiz[e]?d|live\s+wire|live\s+circuit|loto\s+not|loto\s+bypass|no\s+loto|isolation\s+not|not\s+isolated|without\s+isolation/i;
+  // Handles safe negative states: "de-energized", "not energized",
+  // "never energized", "no longer energized", "isolated".
+  // Triggers only on active energized states without LOTO or direct electrical hazards.
+  const directElectricalHazard =
+    /\b(live\s+(line|wire|circuit|cable|conductor|busbar)|loto\s+(not|bypass|bypassed|failed|breached)|(no|without)\s+loto|isolation\s+(not|bypass|bypassed|failed)|(not|without)\s+isolation)\b/i;
 
-  if (energisedPattern.test(desc)) {
+  let hasEnergisedHazard = directElectricalHazard.test(desc);
+
+  if (!hasEnergisedHazard) {
+    // Check if "energised"/"energized" appears in an active (non-negated) hazard context
+    const energisedMatches = desc.matchAll(/(?:\b[\w-]+\s+){0,4}\b(de-?|un-?)?energi[sz]e?d\b/gi);
+    for (const match of energisedMatches) {
+      const prefix = (match[1] || "").toLowerCase();
+      if (prefix.startsWith("de") || prefix.startsWith("un")) {
+        continue; // safe de-energized / unenergized state
+      }
+      const phrase = match[0].toLowerCase();
+      const isNegated =
+        /\b(de-?|not|never|no\s+longer|was\s+not|were\s+not|is\s+not|are\s+not|un-?|neither)\s*(been\s+)?energi[sz]e?d$/i.test(
+          phrase
+        );
+
+      if (!isNegated) {
+        hasEnergisedHazard = true;
+        break;
+      }
+    }
+  }
+
+  if (hasEnergisedHazard) {
     const orig = result.risk_band;
     result.sif_potential = true;
     result.risk_band = escalateBand(result.risk_band as Band, "CRITICAL");
@@ -160,14 +184,24 @@ export function applyGuardrails(
   }
 
   // ── Guardrail 7: Pressurised line without depressurisation ────────────
-  // NOTE: "valve\s+opened" was intentionally removed because it is too broad
-  // and would fire on any legitimate valve operation. We require either an
-  // explicit mention of a pressurised/live-pressure context OR a missing
-  // depressurisation step before the event.
-  const pressurePattern =
-    /pressurised\s+line|pressurized\s+line|pressure\s+line|manifold\s+opened\s+(under|while|at|with)\s+(pressure|live|full|\d+\s*bar)|without\s+(de)?pressuri[sz]ation|not\s+(de)?pressuri[sz]ed|live\s+pressure|under\s+(\d+\s*bar|full\s+pressure|line\s+pressure)/i;
+  // Context-aware detection: requires explicit uncontrolled pressure release,
+  // trapped/residual pressure, missing/bypassed depressurisation, or opening
+  // lines/manifolds while pressurized. Does NOT fire on isolated/depressurized
+  // lines or normal high-pressure operations with verified barriers.
+  const uncontrolledPressurePattern =
+    /\b(trapped|uncontrolled|unexpected|sudden|residual)\s+pressure\b|\bpressure\s+(kick|blowout|spray|burst|rupture|discharge|release)\b|\blive\s+pressure\s+(release|escape|leak|discharge|hazard|spray)\b|\b(well|gas)\s+kick\b|\bblowout\b/i;
 
-  if (pressurePattern.test(desc)) {
+  const missingDepressurisationPattern =
+    /\b(without|no)\s+depressuri[sz]ation\b|\bdepressuri[sz]ation\s+(not|bypassed|skipped|omitted|failed)\b|\bnot\s+depressuri[sz]ed\b|\b(without|no)\s+(bleeding|bleed)\s+(off|down)\b/i;
+
+  const openedUnderPressurePattern =
+    /\b(manifold|flange|line|pipe|valve|coupling|fitting|vessel)\s+(opened|cracked|loosened|disconnected|unbolted|cut)\s+(under|while|with)\s+(live\s+)?pressure\b|\b(opened|cracked|loosened|disconnected|unbolted|cut)\s+(a\s+)?pressuri[sz]ed\s+(hydrocarbon\s+|gas\s+|oil\s+|steam\s+|fluid\s+)?(line|pipe|manifold|valve|flange|vessel)\b|\b(opened|cracked|loosened|disconnected|unbolted|cut)\s+(while\s+(still\s+)?pressuri[sz]ed|under\s+(live\s+)?pressure)\b/i;
+
+  if (
+    uncontrolledPressurePattern.test(desc) ||
+    missingDepressurisationPattern.test(desc) ||
+    openedUnderPressurePattern.test(desc)
+  ) {
     const orig = result.risk_band;
     result.sif_potential = true;
     result.risk_band = escalateBand(result.risk_band as Band, "CRITICAL");
