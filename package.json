@@ -11,7 +11,7 @@
     "seed": "tsx scripts/seed.ts",
     "test": "tsx tests/guardrails.test.ts",
     "test:guardrails": "tsx tests/guardrails.test.ts",
-    "test:rls": "tsx tests/rls.test.ts"
+    "test:rls": "tsx --env-file=.env.local tests/rls.test.ts"
   },
   "dependencies": {
     "@google/genai": "^1.3.0",
