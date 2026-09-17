@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     .eq("id", user.id)
     .single();
 
-  if (!caller || !["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD"].includes(caller.role)) {
+  if (!caller || !["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD", "SUPERVISOR"].includes(caller.role)) {
     return NextResponse.json({ error: "Forbidden: insufficient permissions to invite" }, { status: 403 });
   }
 

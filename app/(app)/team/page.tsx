@@ -18,10 +18,6 @@ export default async function TeamPage() {
 
   if (!profile) redirect("/login");
 
-  // Server-side security check: Employees cannot access team hierarchy management
-  if (profile.role === "EMPLOYEE") {
-    redirect("/dashboard");
-  }
 
   // Fetch all profiles in organization
   const { data: allProfiles } = await admin

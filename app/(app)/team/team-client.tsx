@@ -46,7 +46,7 @@ export function TeamHierarchyClient({ profiles, sites, currentUserRole }: Props)
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  const canInvite = ["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD"].includes(currentUserRole);
+  const canInvite = ["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD", "SUPERVISOR"].includes(currentUserRole);
 
   const toggleCollapse = (id: string) => {
     setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -141,7 +141,22 @@ export function TeamHierarchyClient({ profiles, sites, currentUserRole }: Props)
       </div>
 
       {/* Tree View */}
-      {filteredProfiles.length === 0 ? (
+      {profiles.length === 0 ? (
+        <div className="rounded-2xl border bg-card p-12 text-center text-muted-foreground">
+          <Users className="mx-auto mb-3 h-10 w-10 opacity-30" />
+          <p className="font-semibold text-foreground">No team members added yet</p>
+          <p className="mt-1 text-xs">Start by adding your leadership team, supervisors, or field personnel.</p>
+          {canInvite && (
+            <button
+              onClick={() => openInviteFor(null)}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:opacity-90 shadow-sm"
+            >
+              <UserPlus className="h-4 w-4" />
+              + Add First Member
+            </button>
+          )}
+        </div>
+      ) : filteredProfiles.length === 0 ? (
         <div className="rounded-2xl border bg-card p-12 text-center text-muted-foreground">
           <Users className="mx-auto mb-3 h-10 w-10 opacity-30" />
           <p className="font-semibold text-foreground">No personnel match your search</p>
