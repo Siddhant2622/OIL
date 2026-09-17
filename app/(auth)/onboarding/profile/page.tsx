@@ -20,8 +20,32 @@ export default function OnboardingProfilePage() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
+
+  useEffect(() => {
+    async function loadProfile() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user_metadata?.full_name || user?.user_metadata?.name) {
+        setValue("full_name", user.user_metadata.full_name || user.user_metadata.name);
+      }
+
+      try {
+        const res = await fetch("/api/profile/me");
+        if (res.ok) {
+          const prof = await res.json();
+          if (prof.full_name) setValue("full_name", prof.full_name);
+          if (prof.designation) setValue("designation", prof.designation);
+          if (prof.phone) setValue("phone", prof.phone);
+        }
+      } catch {
+        // Non-fatal fallback to defaults
+      }
+    }
+    loadProfile();
+  }, [setValue]);
 
   async function onSubmit(data: FormData) {
     const supabase = createClient();

@@ -96,16 +96,17 @@ export function InviteModal({
       }
 
       setSuccess(true);
-      setTimeout(() => {
-        setSuccess(false);
-        onClose();
-        if (onSuccess) onSuccess();
-      }, 1400);
+      if (onSuccess) onSuccess();
     } catch {
       setError("Network error. Please try again.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function copyLoginLink() {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    navigator.clipboard.writeText(`${origin}/login`);
   }
 
   return (
@@ -131,12 +132,54 @@ export function InviteModal({
         </div>
 
         {success ? (
-          <div className="py-8 text-center space-y-2">
-            <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto animate-bounce" />
-            <p className="font-bold text-foreground">Invitation Sent!</p>
-            <p className="text-xs text-muted-foreground">
-              {email} will automatically join the hierarchy when signing in with Google.
-            </p>
+          <div className="py-6 text-center space-y-4">
+            <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto animate-in zoom-in duration-200" />
+            <div>
+              <p className="text-base font-bold text-foreground">Invitation Sent Successfully!</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                A pending invitation has been registered for:
+              </p>
+              <p className="mt-1 font-mono text-sm font-semibold text-primary bg-primary/10 py-1.5 px-3 rounded-lg inline-block">
+                {email}
+              </p>
+            </div>
+
+            <div className="rounded-xl border bg-muted/40 p-3 text-xs text-left text-muted-foreground space-y-1.5">
+              <p className="font-semibold text-foreground flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                How the employee logs in:
+              </p>
+              <p>
+                1. The employee visits the login page.
+              </p>
+              <p>
+                2. They click <strong>&quot;Continue with Google&quot;</strong> and choose the Google account for <span className="font-mono text-foreground font-medium">{email}</span>.
+              </p>
+              <p>
+                3. SIF Sentinel matches their invitation automatically and grants access.
+              </p>
+            </div>
+
+            <div className="flex justify-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={copyLoginLink}
+                className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-muted transition"
+              >
+                Copy Login URL
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSuccess(false);
+                  setEmail("");
+                  onClose();
+                }}
+                className="rounded-xl bg-primary px-5 py-2 text-xs font-bold text-primary-foreground hover:opacity-90 transition"
+              >
+                Done
+              </button>
+            </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 text-sm">
@@ -150,16 +193,19 @@ export function InviteModal({
             {/* Email */}
             <div>
               <label className="block text-xs font-semibold mb-1 text-foreground">
-                Work Email Address <span className="text-red-500">*</span>
+                Google Account Email Address <span className="text-red-500">*</span>
               </label>
               <input
                 type="email"
                 required
-                placeholder="e.g. j.sharma@oilindia.in"
+                placeholder="e.g. employee@gmail.com or corporate Google Workspace email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary"
               />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                <strong>Important:</strong> The employee MUST sign in with this exact Google email address.
+              </p>
             </div>
 
             {/* Position vs Role Split */}

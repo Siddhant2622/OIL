@@ -59,14 +59,34 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=no_user`);
   }
 
-  const userEmail = (user.email ?? "").toLowerCase();
+  const userEmail = (user.email ?? "").toLowerCase().trim();
 
   // ── Step 3: Look up existing profile ──────────────────────────────────────
-  const { data: profile } = await admin
+  let { data: profile } = await admin
     .from("profiles")
     .select("id, org_id, role, is_active")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
+
+  // If not found by auth user.id, check by verified email (e.g. pre-provisioned employee)
+  if (!profile && userEmail) {
+    const { data: profileByEmail } = await admin
+      .from("profiles")
+      .select("id, org_id, role, is_active")
+      .ilike("email", userEmail)
+      .maybeSingle();
+
+    if (profileByEmail) {
+      if (profileByEmail.id !== user.id) {
+        await admin
+          .from("profiles")
+          .update({ id: user.id })
+          .eq("id", profileByEmail.id);
+        profileByEmail.id = user.id;
+      }
+      profile = profileByEmail;
+    }
+  }
 
   if (profile) {
     if (!profile.is_active) {
@@ -81,18 +101,49 @@ export async function GET(request: NextRequest) {
 
   // ── Step 4: Look up pending invitation ────────────────────────────────────
   const now = new Date().toISOString();
-  const { data: inv } = await admin
+  let { data: inv } = await admin
     .from("invitations")
     .select("*")
     .ilike("email", userEmail)
     .eq("status", "PENDING")
     .gt("expires_at", now)
     .limit(1)
-    .single();
+    .maybeSingle();
+
+  // If exact match not found and it's Gmail, also check dot-normalized variations
+  // (e.g. j.sharma@gmail.com matches jsharma@gmail.com)
+  if (!inv && (userEmail.endsWith("@gmail.com") || userEmail.endsWith("@googlemail.com"))) {
+    const [localPart] = userEmail.split("@");
+    const dotFree = localPart.replace(/\./g, "");
+
+    const { data: pendingInvites } = await admin
+      .from("invitations")
+      .select("*")
+      .eq("status", "PENDING")
+      .gt("expires_at", now);
+
+    if (pendingInvites) {
+      inv = pendingInvites.find((cand) => {
+        const cEmail = (cand.email ?? "").toLowerCase().trim();
+        if (cEmail.endsWith("@gmail.com") || cEmail.endsWith("@googlemail.com")) {
+          const [cLocal] = cEmail.split("@");
+          return cLocal.replace(/\./g, "") === dotFree;
+        }
+        return false;
+      }) ?? null;
+    }
+  }
 
   if (inv) {
-    // Create profile with full hierarchy context from invitation
-    const { error: profileError } = await admin.from("profiles").insert({
+    // Check if a profile already exists with this email or user.id
+    const { data: existingProf } = await admin
+      .from("profiles")
+      .select("id")
+      .or(`id.eq.${user.id},email.ilike.${userEmail}`)
+      .limit(1)
+      .maybeSingle();
+
+    const profileData = {
       id: user.id,
       org_id: inv.org_id,
       email: userEmail,
@@ -104,11 +155,25 @@ export async function GET(request: NextRequest) {
       site_id: inv.site_id ?? null,
       department: inv.department ?? null,
       is_active: true,
-    });
+    };
+
+    let profileError: any = null;
+    if (existingProf) {
+      const { error: updErr } = await admin
+        .from("profiles")
+        .update(profileData)
+        .eq("id", existingProf.id);
+      profileError = updErr;
+    } else {
+      const { error: insErr } = await admin
+        .from("profiles")
+        .insert(profileData);
+      profileError = insErr;
+    }
 
     if (profileError) {
       console.error(
-        "[auth/callback] Profile creation failed:",
+        "[auth/callback] Profile creation/update failed:",
         profileError.message
       );
       return NextResponse.redirect(
@@ -144,7 +209,7 @@ export async function GET(request: NextRequest) {
       .from("organizations")
       .select("name")
       .eq("domain", emailDomain)
-      .single();
+      .maybeSingle();
 
     if (matchingOrg) {
       params.set("org_hint", matchingOrg.name);

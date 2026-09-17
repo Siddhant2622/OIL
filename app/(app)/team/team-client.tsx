@@ -12,6 +12,10 @@ import {
   Shield,
   Search,
   PlusCircle,
+  Clock,
+  Copy,
+  Check,
+  Trash2,
 } from "lucide-react";
 import { roleLabels } from "@/lib/utils";
 import { InviteModal } from "@/components/invite-modal";
@@ -29,6 +33,18 @@ export interface TeamProfile {
   site?: { name: string } | null;
 }
 
+export interface PendingInvite {
+  id: string;
+  email: string;
+  role: string;
+  designation: string | null;
+  department: string | null;
+  status: string;
+  expires_at: string;
+  created_at: string;
+  site?: { name: string } | null;
+}
+
 interface SiteItem {
   id: string;
   name: string;
@@ -36,15 +52,18 @@ interface SiteItem {
 
 interface Props {
   profiles: TeamProfile[];
+  pendingInvites?: PendingInvite[];
   sites: SiteItem[];
   currentUserRole: string;
 }
 
-export function TeamHierarchyClient({ profiles, sites, currentUserRole }: Props) {
+export function TeamHierarchyClient({ profiles, pendingInvites = [], sites, currentUserRole }: Props) {
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [selectedManagerId, setSelectedManagerId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [pendingList, setPendingList] = useState<PendingInvite[]>(pendingInvites);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const canInvite = ["ORG_ADMIN", "HSE_MANAGER", "DEPT_HEAD", "SUPERVISOR"].includes(currentUserRole);
 
@@ -55,6 +74,25 @@ export function TeamHierarchyClient({ profiles, sites, currentUserRole }: Props)
   const openInviteFor = (managerId: string | null = null) => {
     setSelectedManagerId(managerId);
     setInviteModalOpen(true);
+  };
+
+  const handleRevoke = async (id: string) => {
+    if (!confirm("Revoke this pending invitation?")) return;
+    try {
+      const res = await fetch(`/api/invitations?id=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setPendingList((prev) => prev.filter((inv) => inv.id !== id));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCopyLink = (id: string) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    navigator.clipboard.writeText(`${origin}/login`);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const filteredProfiles = searchQuery.trim()
@@ -139,6 +177,76 @@ export function TeamHierarchyClient({ profiles, sites, currentUserRole }: Props)
           </button>
         )}
       </div>
+
+      {/* Pending Invitations Section */}
+      {pendingList.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 sm:p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-amber-500" />
+              <h2 className="text-sm font-bold text-foreground">
+                Pending Employee Invitations ({pendingList.length})
+              </h2>
+            </div>
+            <span className="text-[11px] text-muted-foreground hidden sm:inline">
+              Awaiting employee to sign in with their matching Google account
+            </span>
+          </div>
+
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {pendingList.map((inv) => (
+              <div
+                key={inv.id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 shadow-xs"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-semibold text-foreground truncate">
+                      {inv.email}
+                    </span>
+                    <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 shrink-0">
+                      Pending Sign-in
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground truncate">
+                    {inv.designation || inv.role} {inv.department ? `· ${inv.department}` : ""}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => handleCopyLink(inv.id)}
+                    title="Copy sign-in URL for employee"
+                    className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition"
+                  >
+                    {copiedId === inv.id ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-green-500" />
+                        <span className="text-green-500 text-[11px]">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        <span className="text-[11px]">Copy Link</span>
+                      </>
+                    )}
+                  </button>
+
+                  {canInvite && (
+                    <button
+                      onClick={() => handleRevoke(inv.id)}
+                      title="Revoke invitation"
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tree View */}
       {profiles.length === 0 ? (

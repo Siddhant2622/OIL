@@ -33,6 +33,14 @@ export default async function TeamPage() {
     .eq("org_id", profile.org_id)
     .order("name");
 
+  // Fetch pending invitations
+  const { data: pendingInvites } = await admin
+    .from("invitations")
+    .select("id, email, role, designation, department, status, expires_at, created_at, sites(name)")
+    .eq("org_id", profile.org_id)
+    .eq("status", "PENDING")
+    .order("created_at", { ascending: false });
+
   const formattedProfiles = (allProfiles ?? []).map((p) => ({
     id: p.id,
     full_name: p.full_name,
@@ -46,9 +54,22 @@ export default async function TeamPage() {
     site: (Array.isArray(p.sites) ? p.sites[0] : p.sites) as unknown as { name: string } | null,
   }));
 
+  const formattedPending = (pendingInvites ?? []).map((inv) => ({
+    id: inv.id,
+    email: inv.email,
+    role: inv.role,
+    designation: inv.designation,
+    department: inv.department,
+    status: inv.status,
+    expires_at: inv.expires_at,
+    created_at: inv.created_at,
+    site: (Array.isArray(inv.sites) ? inv.sites[0] : inv.sites) as unknown as { name: string } | null,
+  }));
+
   return (
     <TeamHierarchyClient
       profiles={formattedProfiles}
+      pendingInvites={formattedPending}
       sites={sites ?? []}
       currentUserRole={profile.role}
     />
